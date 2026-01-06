@@ -160,8 +160,16 @@ impl<'a> Serializer<'a> {
                     &children[i - 1].data.borrow().value,
                     NodeValue::FrontMatter(_)
                 );
+                // Two blank lines before level 2 headings
+                let is_h2 = matches!(
+                    &child.data.borrow().value,
+                    NodeValue::Heading(h) if h.level == 2
+                );
                 if !prev_is_front_matter {
                     self.output.push('\n');
+                    if is_h2 {
+                        self.output.push('\n');
+                    }
                 }
             }
             self.serialize_node(child);
@@ -708,6 +716,14 @@ mod tests {
         let input = "---\ntitle: Test\n---\n\nSome content.";
         let result = parse_and_serialize_with_frontmatter(input);
         assert_eq!(result, "---\ntitle: Test\n---\n\nSome content.\n");
+    }
+
+    #[test]
+    fn test_serialize_two_blank_lines_before_h2() {
+        let input = "# Title\n\nParagraph.\n\n## Section";
+        let result = parse_and_serialize(input);
+        // Should have two blank lines before h2 (one after paragraph + one extra)
+        assert!(result.contains("Paragraph.\n\n\nSection"));
     }
 
     fn parse_and_serialize_with_width(input: &str, line_width: usize) -> String {
