@@ -77,6 +77,33 @@ impl<'a> Serializer<'a> {
             NodeValue::LineBreak => {
                 self.output.push('\n');
             }
+            NodeValue::Emph => {
+                self.output.push('*');
+                self.serialize_children(node);
+                self.output.push('*');
+            }
+            NodeValue::Strong => {
+                self.output.push_str("**");
+                self.serialize_children(node);
+                self.output.push_str("**");
+            }
+            NodeValue::Code(code) => {
+                self.output.push('`');
+                self.output.push_str(&code.literal);
+                self.output.push('`');
+            }
+            NodeValue::Link(link) => {
+                self.output.push('[');
+                self.serialize_children(node);
+                self.output.push_str("](");
+                self.output.push_str(&link.url);
+                if !link.title.is_empty() {
+                    self.output.push_str(" \"");
+                    self.output.push_str(&link.title);
+                    self.output.push('"');
+                }
+                self.output.push(')');
+            }
             _ => {
                 // For now, just recurse into children for unhandled nodes
                 self.serialize_children(node);
@@ -332,5 +359,39 @@ mod tests {
     fn test_serialize_block_quote_multiple_paragraphs() {
         let result = parse_and_serialize("> First paragraph.\n>\n> Second paragraph.");
         assert_eq!(result, "> First paragraph.\n>\n> Second paragraph.\n");
+    }
+
+    #[test]
+    fn test_serialize_emphasis() {
+        let result = parse_and_serialize("This is *emphasized* text.");
+        assert_eq!(result, "This is *emphasized* text.\n");
+    }
+
+    #[test]
+    fn test_serialize_strong() {
+        let result = parse_and_serialize("This is **strong** text.");
+        assert_eq!(result, "This is **strong** text.\n");
+    }
+
+    #[test]
+    fn test_serialize_inline_code() {
+        let result = parse_and_serialize("Use the `format()` function.");
+        assert_eq!(result, "Use the `format()` function.\n");
+    }
+
+    #[test]
+    fn test_serialize_inline_link() {
+        let result = parse_and_serialize("Visit [Rust](https://www.rust-lang.org/).");
+        assert_eq!(result, "Visit [Rust](https://www.rust-lang.org/).\n");
+    }
+
+    #[test]
+    fn test_serialize_inline_link_with_title() {
+        let result =
+            parse_and_serialize("Visit [Rust](https://www.rust-lang.org/ \"The Rust Language\").");
+        assert_eq!(
+            result,
+            "Visit [Rust](https://www.rust-lang.org/ \"The Rust Language\").\n"
+        );
     }
 }

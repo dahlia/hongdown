@@ -77,7 +77,7 @@ TODO
  -  [x] Lists (ordered and unordered)
  -  [x] Code blocks (fenced)
  -  [x] Block quotes
- -  [ ] Inline formatting (emphasis, strong, code, links)
+ -  [x] Inline formatting (emphasis, strong, code, links)
  -  [ ] Basic test suite
 
 ### Phase 2: Extended syntax
