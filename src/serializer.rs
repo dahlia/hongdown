@@ -33,6 +33,8 @@ struct Serializer<'a> {
     /// Reference links collected for the current section
     /// Key: URL, Value: ReferenceLink
     pending_references: HashMap<String, ReferenceLink>,
+    /// Current list nesting depth (0 = not in list, 1 = top-level, 2+ = nested)
+    list_depth: usize,
 }
 
 impl<'a> Serializer<'a> {
@@ -44,6 +46,7 @@ impl<'a> Serializer<'a> {
             list_type: None,
             in_block_quote: false,
             pending_references: HashMap::new(),
+            list_depth: 0,
         }
     }
 
@@ -103,6 +106,14 @@ impl<'a> Serializer<'a> {
             }
             NodeValue::BlockQuote => {
                 self.serialize_block_quote(node);
+            }
+            NodeValue::HtmlBlock(html_block) => {
+                // Preserve HTML blocks (like comments) as-is
+                self.output.push_str(&html_block.literal);
+            }
+            NodeValue::HtmlInline(html) => {
+                // Preserve inline HTML as-is
+                self.output.push_str(html);
             }
             NodeValue::FrontMatter(content) => {
                 self.serialize_front_matter(content);
@@ -171,6 +182,9 @@ impl<'a> Serializer<'a> {
             }
             NodeValue::Link(link) => {
                 self.serialize_link(node, &link.url, &link.title);
+            }
+            NodeValue::Image(image) => {
+                self.serialize_image(node, &image.url, &image.title);
             }
             NodeValue::FootnoteReference(footnote_ref) => {
                 self.output.push_str("[^");
@@ -293,6 +307,23 @@ impl<'a> Serializer<'a> {
         }
     }
 
+    fn serialize_image<'b>(&mut self, node: &'b AstNode<'b>, url: &str, title: &str) {
+        // Collect the alt text
+        let alt_text = self.collect_text(node);
+
+        // Images always use inline syntax (no reference style for images)
+        self.output.push_str("![");
+        self.output.push_str(&alt_text);
+        self.output.push_str("](");
+        self.output.push_str(url);
+        if !title.is_empty() {
+            self.output.push_str(" \"");
+            self.output.push_str(title);
+            self.output.push('"');
+        }
+        self.output.push(')');
+    }
+
     fn collect_text<'b>(&self, node: &'b AstNode<'b>) -> String {
         let mut text = String::new();
         self.collect_text_recursive(node, &mut text);
@@ -412,6 +443,29 @@ impl<'a> Serializer<'a> {
                     }
                     content.push(')');
                 }
+            }
+            NodeValue::Image(image) => {
+                // Collect alt text
+                let mut alt_text = String::new();
+                for child in node.children() {
+                    self.collect_inline_node(child, &mut alt_text);
+                }
+
+                // Images always use inline syntax
+                content.push_str("![");
+                content.push_str(&alt_text);
+                content.push_str("](");
+                content.push_str(&image.url);
+                if !image.title.is_empty() {
+                    content.push_str(" \"");
+                    content.push_str(&image.title);
+                    content.push('"');
+                }
+                content.push(')');
+            }
+            NodeValue::HtmlInline(html) => {
+                // Preserve inline HTML as-is
+                content.push_str(html);
             }
             _ => {
                 for child in node.children() {
@@ -841,9 +895,11 @@ impl<'a> Serializer<'a> {
 
         self.list_type = Some(list_type);
         self.list_item_index = 0;
+        self.list_depth += 1;
 
         self.serialize_children(node);
 
+        self.list_depth -= 1;
         self.list_type = old_list_type;
         self.list_item_index = old_index;
     }
@@ -851,10 +907,19 @@ impl<'a> Serializer<'a> {
     fn serialize_list_item<'b>(&mut self, node: &'b AstNode<'b>) {
         self.list_item_index += 1;
 
+        // Calculate indentation for nested lists (4 spaces per level, starting from level 2)
+        let indent = if self.list_depth > 1 {
+            "    ".repeat(self.list_depth - 1)
+        } else {
+            String::new()
+        };
+
         // Add block quote prefix if we're inside a block quote
         if self.in_block_quote {
             self.output.push_str("> ");
         }
+
+        self.output.push_str(&indent);
 
         match self.list_type {
             Some(ListType::Bullet) => {
@@ -870,8 +935,28 @@ impl<'a> Serializer<'a> {
             None => {}
         }
 
-        self.serialize_children(node);
-        self.output.push('\n');
+        // Serialize children, handling nested lists specially
+        for child in node.children() {
+            match &child.data.borrow().value {
+                NodeValue::List(_) => {
+                    // Add newline before nested list
+                    self.output.push('\n');
+                    self.serialize_node(child);
+                }
+                _ => {
+                    self.serialize_node(child);
+                }
+            }
+        }
+
+        // Only add newline if we didn't just serialize a nested list
+        // (nested lists add their own newlines)
+        let last_child_is_list = node.children().last().is_some_and(|child| {
+            matches!(&child.data.borrow().value, NodeValue::List(_))
+        });
+        if !last_child_is_list {
+            self.output.push('\n');
+        }
     }
 
     fn serialize_children<'b>(&mut self, node: &'b AstNode<'b>) {
