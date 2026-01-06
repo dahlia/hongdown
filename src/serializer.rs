@@ -19,6 +19,8 @@ struct Serializer<'a> {
     list_item_index: usize,
     /// Current list type
     list_type: Option<ListType>,
+    /// Whether we're inside a block quote
+    in_block_quote: bool,
 }
 
 impl<'a> Serializer<'a> {
@@ -28,6 +30,7 @@ impl<'a> Serializer<'a> {
             options,
             list_item_index: 0,
             list_type: None,
+            in_block_quote: false,
         }
     }
 
@@ -45,6 +48,9 @@ impl<'a> Serializer<'a> {
             NodeValue::CodeBlock(code_block) => {
                 self.serialize_code_block(&code_block.info, &code_block.literal);
             }
+            NodeValue::BlockQuote => {
+                self.serialize_block_quote(node);
+            }
             NodeValue::Item(_) => {
                 self.serialize_list_item(node);
             }
@@ -52,6 +58,11 @@ impl<'a> Serializer<'a> {
                 if self.list_type.is_some() {
                     // Inside a list item, don't add trailing newline
                     self.serialize_children(node);
+                } else if self.in_block_quote {
+                    // Inside a block quote, add > prefix
+                    self.output.push_str("> ");
+                    self.serialize_children(node);
+                    self.output.push('\n');
                 } else {
                     self.serialize_children(node);
                     self.output.push('\n');
@@ -120,6 +131,22 @@ impl<'a> Serializer<'a> {
                 }
             }
         }
+    }
+
+    fn serialize_block_quote<'b>(&mut self, node: &'b AstNode<'b>) {
+        let was_in_block_quote = self.in_block_quote;
+        self.in_block_quote = true;
+
+        let children: Vec<_> = node.children().collect();
+        for (i, child) in children.iter().enumerate() {
+            // Add blank quote line between paragraphs
+            if i > 0 {
+                self.output.push_str(">\n");
+            }
+            self.serialize_node(child);
+        }
+
+        self.in_block_quote = was_in_block_quote;
     }
 
     fn serialize_code_block(&mut self, info: &str, literal: &str) {
@@ -287,5 +314,23 @@ mod tests {
         // When code contains ~~~~, use more tildes for the fence
         let result = parse_and_serialize("```\n~~~~\ninner fence\n~~~~\n```");
         assert_eq!(result, "~~~~~ text\n~~~~\ninner fence\n~~~~\n~~~~~\n");
+    }
+
+    #[test]
+    fn test_serialize_block_quote_single_line() {
+        let result = parse_and_serialize("> This is a quote.");
+        assert_eq!(result, "> This is a quote.\n");
+    }
+
+    #[test]
+    fn test_serialize_block_quote_multiple_lines() {
+        let result = parse_and_serialize("> Line one.\n> Line two.");
+        assert_eq!(result, "> Line one. Line two.\n");
+    }
+
+    #[test]
+    fn test_serialize_block_quote_multiple_paragraphs() {
+        let result = parse_and_serialize("> First paragraph.\n>\n> Second paragraph.");
+        assert_eq!(result, "> First paragraph.\n>\n> Second paragraph.\n");
     }
 }

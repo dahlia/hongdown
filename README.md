@@ -76,7 +76,7 @@ TODO
  -  [ ] Paragraphs with line wrapping
  -  [x] Lists (ordered and unordered)
  -  [x] Code blocks (fenced)
- -  [ ] Block quotes
+ -  [x] Block quotes
  -  [ ] Inline formatting (emphasis, strong, code, links)
  -  [ ] Basic test suite
 
