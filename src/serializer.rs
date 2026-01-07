@@ -170,6 +170,7 @@ impl<'a> Serializer<'a> {
 
     /// Check if a link/image was originally in reference style by examining the source.
     /// Returns Some((text, label)) if reference style, None if inline style.
+    /// The returned text has newlines normalized to spaces for consistent output.
     fn get_reference_style_info<'b>(&self, node: &'b AstNode<'b>) -> Option<(String, String)> {
         let source = self.extract_source(node)?;
 
@@ -214,6 +215,9 @@ impl<'a> Serializer<'a> {
         let after_close: String = chars[text_end_pos + 1..].iter().collect();
         let text: String = chars[first_bracket + 1..text_end_pos].iter().collect();
 
+        // Normalize newlines to spaces in the text (for idempotency when text spans lines)
+        let text = Self::normalize_whitespace(&text);
+
         // If followed by "(", it's inline style
         if after_close.starts_with('(') {
             return None;
@@ -224,6 +228,8 @@ impl<'a> Serializer<'a> {
             // Find the label between [ and ]
             if let Some(label_end) = label_content.find(']') {
                 let label = label_content[..label_end].to_string();
+                // Normalize label too
+                let label = Self::normalize_whitespace(&label);
 
                 // If label is empty, it's collapsed reference (use text as label)
                 let final_label = if label.is_empty() {
@@ -239,6 +245,11 @@ impl<'a> Serializer<'a> {
         // Shortcut reference: just [text] with nothing following
         // or followed by something that's not ( or [
         Some((text.clone(), text))
+    }
+
+    /// Normalize whitespace in text: convert newlines and multiple spaces to single space.
+    fn normalize_whitespace(text: &str) -> String {
+        text.split_whitespace().collect::<Vec<_>>().join(" ")
     }
 
     /// Escape special Markdown characters in text content.
@@ -312,6 +323,52 @@ impl<'a> Serializer<'a> {
             }
         }
         result
+    }
+
+    /// Format a code span with the appropriate number of backticks.
+    /// According to CommonMark spec, if the content contains N consecutive backticks,
+    /// the delimiter must use at least N+1 backticks. Spaces are added if the content
+    /// starts or ends with a backtick or space (and content is not all spaces).
+    fn format_code_span(content: &str) -> String {
+        // Find the maximum number of consecutive backticks in the content
+        let mut max_consecutive = 0;
+        let mut current_consecutive = 0;
+        for ch in content.chars() {
+            if ch == '`' {
+                current_consecutive += 1;
+                max_consecutive = max_consecutive.max(current_consecutive);
+            } else {
+                current_consecutive = 0;
+            }
+        }
+
+        // Use max_consecutive + 1 backticks as delimiters
+        let delimiter_count = if max_consecutive > 0 {
+            max_consecutive + 1
+        } else {
+            1
+        };
+        let delimiter: String = "`".repeat(delimiter_count);
+
+        // Determine if we need space padding.
+        // Per CommonMark: if the content begins or ends with a backtick or space
+        // (and is not only spaces), add space padding.
+        let needs_space = if content.is_empty() {
+            false
+        } else if content.chars().all(|c| c == ' ') {
+            // Content is only spaces - no padding needed
+            false
+        } else {
+            let first = content.chars().next().unwrap();
+            let last = content.chars().last().unwrap();
+            first == '`' || first == ' ' || last == '`' || last == ' '
+        };
+
+        if needs_space {
+            format!("{} {} {}", delimiter, content, delimiter)
+        } else {
+            format!("{}{}{}", delimiter, content, delimiter)
+        }
     }
 
     /// Check if a URL is external (http:// or https://)
@@ -484,9 +541,7 @@ impl<'a> Serializer<'a> {
                 self.output.push_str("**");
             }
             NodeValue::Code(code) => {
-                self.output.push('`');
-                self.output.push_str(&code.literal);
-                self.output.push('`');
+                self.output.push_str(&Self::format_code_span(&code.literal));
             }
             NodeValue::Link(link) => {
                 self.serialize_link(node, &link.url, &link.title);
@@ -866,9 +921,7 @@ impl<'a> Serializer<'a> {
                 text.push_str(&Self::escape_text(t));
             }
             NodeValue::Code(code) => {
-                text.push('`');
-                text.push_str(&code.literal);
-                text.push('`');
+                text.push_str(&Self::format_code_span(&code.literal));
             }
             NodeValue::SoftBreak => {
                 text.push(' ');
@@ -943,9 +996,7 @@ impl<'a> Serializer<'a> {
                 content.push_str("**");
             }
             NodeValue::Code(code) => {
-                content.push('`');
-                content.push_str(&code.literal);
-                content.push('`');
+                content.push_str(&Self::format_code_span(&code.literal));
             }
             NodeValue::Link(link) => {
                 // Check if link contains an image (badge-style link)
@@ -2627,6 +2678,92 @@ Check [Python](https://python.org/) too.
             result.contains("[documentation][docs]"),
             "Reference-style link should be preserved, got:\n{}",
             result
+        );
+    }
+
+    #[test]
+    fn test_code_span_with_backticks() {
+        // Code spans containing backticks should use double backticks as delimiters
+        let input = "Here is `` `code` `` in text.";
+        let result = parse_and_serialize_with_source(input);
+        assert!(
+            result.contains("`` `code` ``"),
+            "Code span with backtick should use double backtick delimiters, got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_code_span_with_multiple_backticks() {
+        // Code spans containing double backticks should use triple backticks
+        let input = "Use ``` `` ``` for double backticks.";
+        let result = parse_and_serialize_with_source(input);
+        assert!(
+            result.contains("``` `` ```"),
+            "Code span with double backticks should use triple backtick delimiters, got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_code_span_simple() {
+        // Simple code spans without backticks should use single backticks
+        let input = "Use `code` for inline code.";
+        let result = parse_and_serialize_with_source(input);
+        assert!(
+            result.contains("`code`"),
+            "Simple code span should use single backticks, got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_code_span_starting_with_backtick() {
+        // Code starting with backtick needs space padding
+        let input = "The code `` `foo `` starts with a backtick.";
+        let result = parse_and_serialize_with_source(input);
+        assert!(
+            result.contains("`` `foo ``"),
+            "Code starting with backtick should have space padding, got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_code_span_ending_with_backtick() {
+        // Code ending with backtick needs space padding
+        let input = "The code `` foo` `` ends with a backtick.";
+        let result = parse_and_serialize_with_source(input);
+        assert!(
+            result.contains("`` foo` ``"),
+            "Code ending with backtick should have space padding, got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_reference_link_multiline_text_normalized() {
+        // Reference link text spanning multiple lines should be normalized to single line
+        let input = "Click [here for\nmore info][1].\n\n[1]: https://example.com";
+        let result = parse_and_serialize_with_source(input);
+        // The link text should be normalized (newline -> space)
+        assert!(
+            result.contains("[here for more info]"),
+            "Reference link text should be normalized to single line, got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_reference_link_idempotent() {
+        // Reference style link should be idempotent after formatting
+        let input = "Click [here for more info][1].\n\n[1]: https://example.com";
+        let result = parse_and_serialize_with_source(input);
+        let result2 = parse_and_serialize_with_source(&result);
+        assert_eq!(
+            result, result2,
+            "Reference link should be idempotent.\nFirst pass:\n{}\nSecond pass:\n{}",
+            result, result2
         );
     }
 }
