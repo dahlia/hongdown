@@ -4,10 +4,12 @@ use std::fs;
 use std::io::{self, Read};
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use clap::Parser;
 use hongdown::config::Config;
 use hongdown::{Options, format_with_warnings};
+use rayon::prelude::*;
 
 /// A Markdown formatter that enforces Hong Minhee's Markdown style conventions.
 #[derive(Parser, Debug)]
@@ -83,59 +85,106 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         }
+    } else if args.write || args.check {
+        // Parallel processing for --write and --check modes
+        process_files_parallel(&args.files, &options, args.write, args.check)
     } else {
-        let mut all_formatted = true;
+        // Sequential processing for stdout mode (order matters)
+        process_files_sequential(&args.files, &options)
+    }
+}
 
-        for file in &args.files {
-            let input = match fs::read_to_string(file) {
-                Ok(content) => content,
-                Err(e) => {
-                    eprintln!("Error reading {}: {}", file.display(), e);
-                    return ExitCode::FAILURE;
+/// Process files in parallel (for --write and --check modes).
+fn process_files_parallel(
+    files: &[PathBuf],
+    options: &Options,
+    write: bool,
+    check: bool,
+) -> ExitCode {
+    let has_error = AtomicBool::new(false);
+    let all_formatted = AtomicBool::new(true);
+
+    files.par_iter().for_each(|file| {
+        let input = match fs::read_to_string(file) {
+            Ok(content) => content,
+            Err(e) => {
+                eprintln!("Error reading {}: {}", file.display(), e);
+                has_error.store(true, Ordering::Relaxed);
+                return;
+            }
+        };
+
+        match format_with_warnings(&input, options) {
+            Ok(result) => {
+                // Print warnings to stderr
+                for warning in &result.warnings {
+                    eprintln!(
+                        "{}:{}: warning: {}",
+                        file.display(),
+                        warning.line,
+                        warning.message
+                    );
                 }
-            };
 
-            match format_with_warnings(&input, &options) {
-                Ok(result) => {
-                    // Print warnings to stderr
-                    for warning in &result.warnings {
-                        eprintln!(
-                            "{}:{}: warning: {}",
-                            file.display(),
-                            warning.line,
-                            warning.message
-                        );
+                if check {
+                    if input != result.output {
+                        eprintln!("{}: not formatted", file.display());
+                        all_formatted.store(false, Ordering::Relaxed);
                     }
-
-                    if args.check {
-                        if input != result.output {
-                            eprintln!("{}: not formatted", file.display());
-                            all_formatted = false;
-                        }
-                    } else if args.write {
-                        if input != result.output
-                            && let Err(e) = fs::write(file, &result.output)
-                        {
-                            eprintln!("Error writing {}: {}", file.display(), e);
-                            return ExitCode::FAILURE;
-                        }
-                    } else {
-                        print!("{}", result.output);
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Error formatting {}: {}", file.display(), e);
-                    return ExitCode::FAILURE;
+                } else if write
+                    && input != result.output
+                    && let Err(e) = fs::write(file, &result.output)
+                {
+                    eprintln!("Error writing {}: {}", file.display(), e);
+                    has_error.store(true, Ordering::Relaxed);
                 }
             }
+            Err(e) => {
+                eprintln!("Error formatting {}: {}", file.display(), e);
+                has_error.store(true, Ordering::Relaxed);
+            }
         }
+    });
 
-        if args.check && !all_formatted {
-            ExitCode::FAILURE
-        } else {
-            ExitCode::SUCCESS
+    if has_error.load(Ordering::Relaxed) || (check && !all_formatted.load(Ordering::Relaxed)) {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+/// Process files sequentially (for stdout mode where order matters).
+fn process_files_sequential(files: &[PathBuf], options: &Options) -> ExitCode {
+    for file in files {
+        let input = match fs::read_to_string(file) {
+            Ok(content) => content,
+            Err(e) => {
+                eprintln!("Error reading {}: {}", file.display(), e);
+                return ExitCode::FAILURE;
+            }
+        };
+
+        match format_with_warnings(&input, options) {
+            Ok(result) => {
+                // Print warnings to stderr
+                for warning in &result.warnings {
+                    eprintln!(
+                        "{}:{}: warning: {}",
+                        file.display(),
+                        warning.line,
+                        warning.message
+                    );
+                }
+                print!("{}", result.output);
+            }
+            Err(e) => {
+                eprintln!("Error formatting {}: {}", file.display(), e);
+                return ExitCode::FAILURE;
+            }
         }
     }
+
+    ExitCode::SUCCESS
 }
 
 /// Load configuration from file or use defaults.
