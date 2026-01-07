@@ -79,7 +79,7 @@ struct Serializer<'a> {
     /// Whether we're inside a block quote
     in_block_quote: bool,
     /// Reference links collected for the current section
-    /// Key: URL, Value: ReferenceLink (insertion order preserved)
+    /// Key: label, Value: ReferenceLink (insertion order preserved)
     pending_references: IndexMap<String, ReferenceLink>,
     /// Current list nesting depth (0 = not in list, 1 = top-level, 2+ = nested)
     list_depth: usize,
@@ -472,7 +472,9 @@ impl<'a> Serializer<'a> {
     /// Write a single reference definition to output
     fn write_reference(output: &mut String, reference: &ReferenceLink) {
         output.push('[');
-        output.push_str(&reference.label);
+        // Replace SoftBreak marker with space for reference labels
+        // (comrak normalizes whitespace in labels, so this ensures idempotency)
+        output.push_str(&reference.label.replace('\x00', " "));
         output.push_str("]: ");
         output.push_str(&reference.url);
         if !reference.title.is_empty() {
@@ -539,14 +541,7 @@ impl<'a> Serializer<'a> {
                 self.output.push('\n');
             }
             NodeValue::DescriptionDetails => {
-                self.output.push_str(":   ");
-                // Collect inline content for the definition
-                let mut content = String::new();
-                for child in node.children() {
-                    self.collect_inline_node(child, &mut content);
-                }
-                self.output.push_str(content.trim());
-                self.output.push('\n');
+                self.serialize_description_details(node);
             }
             NodeValue::Alert(alert) => {
                 self.serialize_alert(node, alert.alert_type);
@@ -751,6 +746,93 @@ impl<'a> Serializer<'a> {
         self.flush_references();
     }
 
+    fn serialize_description_details<'b>(&mut self, node: &'b AstNode<'b>) {
+        let children: Vec<_> = node.children().collect();
+
+        for (i, child) in children.iter().enumerate() {
+            let child_value = &child.data.borrow().value;
+
+            if i == 0 {
+                // First child: start with `:   ` marker
+                match child_value {
+                    NodeValue::Paragraph => {
+                        self.output.push_str(":   ");
+                        let mut content = String::new();
+                        self.collect_inline_content(child, &mut content);
+                        let wrapped = self.wrap_text_first_line(content.trim(), "", "    ");
+                        self.output.push_str(&wrapped);
+                        self.output.push('\n');
+                    }
+                    NodeValue::CodeBlock(code) => {
+                        // Code block as first child (unusual but possible)
+                        self.output.push_str(":   ");
+                        self.output.push('\n');
+                        self.output.push_str("    ");
+                        self.serialize_code_block_with_indent(code, "    ");
+                    }
+                    _ => {
+                        // Other block types: serialize normally with indent
+                        self.output.push_str(":   ");
+                        self.serialize_node(child);
+                    }
+                }
+            } else {
+                // Subsequent children: need blank line and 4-space indent
+                self.output.push('\n');
+                match child_value {
+                    NodeValue::Paragraph => {
+                        self.output.push_str("    ");
+                        let mut content = String::new();
+                        self.collect_inline_content(child, &mut content);
+                        let wrapped = self.wrap_text_first_line(content.trim(), "", "    ");
+                        self.output.push_str(&wrapped);
+                        self.output.push('\n');
+                    }
+                    NodeValue::CodeBlock(code) => {
+                        self.output.push_str("    ");
+                        self.serialize_code_block_with_indent(code, "    ");
+                    }
+                    _ => {
+                        // Other block types
+                        self.output.push_str("    ");
+                        self.serialize_node(child);
+                    }
+                }
+            }
+        }
+    }
+
+    fn serialize_code_block_with_indent(
+        &mut self,
+        code: &comrak::nodes::NodeCodeBlock,
+        indent: &str,
+    ) {
+        let fence = if code.literal.contains("~~~~") {
+            "~~~~~"
+        } else {
+            "~~~~"
+        };
+        self.output.push_str(fence);
+        if !code.info.is_empty() {
+            self.output.push(' ');
+            self.output.push_str(&code.info);
+        }
+        self.output.push('\n');
+        // Add indent to each line of code
+        for line in code.literal.lines() {
+            self.output.push_str(indent);
+            self.output.push_str(line);
+            self.output.push('\n');
+        }
+        // Handle trailing newline in literal
+        if !code.literal.ends_with('\n') && !code.literal.is_empty() {
+            self.output.push('\n');
+        }
+        self.output.push_str(indent);
+        self.output.push_str(fence);
+        self.output.push('\n');
+    }
+
     fn serialize_heading<'b>(&mut self, node: &'b AstNode<'b>, level: u8) {
         // Collect heading text first
         let heading_text = self.collect_text(node);
@@ -810,7 +892,7 @@ impl<'a> Serializer<'a> {
 
                 // Store the reference definition with actual label (without marker)
                 self.pending_references.insert(
-                    url.to_string(),
+                    actual_label.to_string(),
                     ReferenceLink {
                         label: actual_label.to_string(),
                         url: url.to_string(),
@@ -825,7 +907,7 @@ impl<'a> Serializer<'a> {
 
                 // Store the reference definition for later output
                 self.pending_references.insert(
-                    url.to_string(),
+                    label.clone(),
                     ReferenceLink {
                         label,
                         url: url.to_string(),
@@ -842,7 +924,7 @@ impl<'a> Serializer<'a> {
 
                 // Store the reference definition for later output
                 self.pending_references.insert(
-                    url.to_string(),
+                    label.clone(),
                     ReferenceLink {
                         label,
                         url: url.to_string(),
@@ -881,7 +963,7 @@ impl<'a> Serializer<'a> {
 
             // Store the reference definition for later output
             self.pending_references.insert(
-                url.to_string(),
+                label.clone(),
                 ReferenceLink {
                     label,
                     url: url.to_string(),
@@ -919,7 +1001,7 @@ impl<'a> Serializer<'a> {
                 self.output.push_str("][]");
 
                 self.pending_references.insert(
-                    url.to_string(),
+                    actual_label.to_string(),
                     ReferenceLink {
                         label: actual_label.to_string(),
                         url: url.to_string(),
@@ -933,7 +1015,7 @@ impl<'a> Serializer<'a> {
                 self.output.push(']');
 
                 self.pending_references.insert(
-                    url.to_string(),
+                    label.clone(),
                     ReferenceLink {
                         label,
                         url: url.to_string(),
@@ -949,7 +1031,7 @@ impl<'a> Serializer<'a> {
                 self.output.push(']');
 
                 self.pending_references.insert(
-                    url.to_string(),
+                    label.clone(),
                     ReferenceLink {
                         label,
                         url: url.to_string(),
@@ -1111,7 +1193,7 @@ impl<'a> Serializer<'a> {
                         content.push(']');
 
                         self.pending_references.insert(
-                            link.url.clone(),
+                            actual_label.to_string(),
                             ReferenceLink {
                                 label: actual_label.to_string(),
                                 url: link.url.clone(),
@@ -1126,7 +1208,7 @@ impl<'a> Serializer<'a> {
                         content.push_str("][]");
 
                         self.pending_references.insert(
-                            link.url.clone(),
+                            actual_label.to_string(),
                             ReferenceLink {
                                 label: actual_label.to_string(),
                                 url: link.url.clone(),
@@ -1140,7 +1222,7 @@ impl<'a> Serializer<'a> {
                         content.push(']');
 
                         self.pending_references.insert(
-                            link.url.clone(),
+                            label.clone(),
                             ReferenceLink {
                                 label,
                                 url: link.url.clone(),
@@ -1156,7 +1238,7 @@ impl<'a> Serializer<'a> {
                         content.push(']');
 
                         self.pending_references.insert(
-                            link.url.clone(),
+                            label.clone(),
                             ReferenceLink {
                                 label,
                                 url: link.url.clone(),
@@ -1189,15 +1271,18 @@ impl<'a> Serializer<'a> {
                     for child in node.children() {
                         self.collect_inline_node(child, &mut link_text);
                     }
+                    // Normalize: replace SoftBreak markers with spaces for shortcut refs
+                    // so link text matches reference label
+                    let normalized_text = link_text.replace('\x00', " ");
                     content.push('[');
-                    content.push_str(&link_text);
+                    content.push_str(&normalized_text);
                     content.push(']');
 
                     // Store the reference definition
                     self.pending_references.insert(
-                        link.url.clone(),
+                        normalized_text.clone(),
                         ReferenceLink {
-                            label: link_text,
+                            label: normalized_text,
                             url: link.url.clone(),
                             title: link.title.clone(),
                         },
@@ -1240,7 +1325,7 @@ impl<'a> Serializer<'a> {
 
                     // Store the reference definition
                     self.pending_references.insert(
-                        image.url.clone(),
+                        label.clone(),
                         ReferenceLink {
                             label,
                             url: image.url.clone(),
@@ -1361,14 +1446,16 @@ impl<'a> Serializer<'a> {
         // Split into "tokens" where each token is either:
         // - A word (non-space characters) followed by optional spaces
         // - Content inside backticks (treated as a single unbreakable unit)
+        // - Content inside brackets (treated as a single unbreakable unit for links)
         // We preserve double spaces after periods.
         let chars = text.chars();
         let mut current_token = String::new();
         let mut trailing_spaces = String::new();
         let mut in_backticks = false;
+        let mut bracket_depth = 0;
 
         for ch in chars {
-            if ch == '`' {
+            if ch == '`' && bracket_depth == 0 {
                 if in_backticks {
                     // End of backtick region
                     current_token.push(ch);
@@ -1396,10 +1483,36 @@ impl<'a> Serializer<'a> {
             } else if in_backticks {
                 // Inside backticks, everything is part of the token
                 current_token.push(ch);
+            } else if ch == '[' {
+                // Start of bracket region
+                if bracket_depth == 0 && !current_token.is_empty() && !trailing_spaces.is_empty() {
+                    // Output previous token before starting bracket
+                    Self::add_token_to_line_with_prefix(
+                        &mut result,
+                        &mut current_line,
+                        &current_token,
+                        &trailing_spaces,
+                        first_prefix_len,
+                        prefix,
+                        line_width,
+                        &mut is_first_line,
+                    );
+                    current_token.clear();
+                    trailing_spaces.clear();
+                }
+                current_token.push(ch);
+                bracket_depth += 1;
+            } else if ch == ']' && bracket_depth > 0 {
+                // End of bracket region (or nested bracket)
+                current_token.push(ch);
+                bracket_depth -= 1;
+            } else if bracket_depth > 0 {
+                // Inside brackets, everything is part of the token
+                current_token.push(ch);
             } else if ch == ' ' {
                 trailing_spaces.push(ch);
             } else {
-                // Regular character outside backticks
+                // Regular character outside backticks and brackets
                 if !current_token.is_empty() && !trailing_spaces.is_empty() {
                     // We have a previous word with trailing spaces, output it
                     Self::add_token_to_line_with_prefix(
