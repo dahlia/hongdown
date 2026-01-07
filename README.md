@@ -23,12 +23,14 @@ Installation
 ### From source
 
 ~~~~ bash
-cargo install hongdown --features cli
+cargo install hongdown
 ~~~~
 
 
 Usage
 -----
+
+### Basic usage
 
 ~~~~ bash
 # Format a file and print to stdout
@@ -41,11 +43,51 @@ hongdown -w input.md
 # Format multiple files
 hongdown -w *.md
 
-# Format and show diff
-hongdown --diff input.md
-
 # Check if files are formatted (exit 1 if not)
 hongdown --check input.md
+hongdown -c input.md
+
+# Read from stdin
+echo "# Hello" | hongdown
+hongdown --stdin < input.md
+
+# Custom line width
+hongdown --line-width 100 input.md
+~~~~
+
+### Disable directives
+
+Hongdown supports special HTML comments to disable formatting for specific
+sections of your document:
+
+~~~~ markdown
+<!-- hongdown-disable-file -->
+This entire file will not be formatted.
+~~~~
+
+~~~~ markdown
+<!-- hongdown-disable-next-line -->
+This   line   preserves   its   spacing.
+
+The next line will be formatted normally.
+~~~~
+
+~~~~ markdown
+<!-- hongdown-disable-next-section -->
+Everything here is preserved as-is
+until the next heading (h1 or h2).
+
+Next heading
+------------
+
+This section will be formatted normally.
+~~~~
+
+~~~~ markdown
+<!-- hongdown-disable -->
+This section is not formatted.
+<!-- hongdown-enable -->
+This section is formatted again.
 ~~~~
 
 
@@ -54,15 +96,87 @@ Style rules
 
 Hongdown enforces the following conventions:
 
- -  *Headings*: Setext-style for levels 1-2, ATX-style for levels 3+
- -  *Lists*: ` -  ` format with 4-space indentation
- -  *Code blocks*: Fenced with `~~~~` (tildes)
- -  *Line wrapping*: At approximately 80 display columns
- -  *Tables*: Aligned pipes accounting for East Asian wide characters
+### Headings
+
+ -  Level 1 and 2 use Setext-style (underlined with `=` or `-`)
+ -  Level 3+ use ATX-style (`###`, `####`, etc.)
+
+~~~~ markdown
+Document Title
+==============
+
+Section
+-------
+
+### Subsection
+~~~~
+
+### Lists
+
+ -  Unordered lists use ` -  ` (space-hyphen-two spaces)
+ -  Ordered lists use `1.` format
+ -  4-space indentation for nested items
+
+~~~~ markdown
+ -  First item
+ -  Second item
+    -  Nested item
+~~~~
+
+### Code blocks
+
+ -  Fenced with four tildes (`~~~~`)
+ -  Language identifier on the opening fence
+
+~~~~~ text
+~~~~ rust
+fn main() {
+    println!("Hello, world!");
+}
+~~~~
+~~~~~
+
+### Line wrapping
+
+ -  Lines wrap at approximately 80 display columns
+ -  East Asian wide characters are counted as 2 columns
+ -  Long words that cannot be broken are preserved
+
+### Links
+
+ -  External URLs are converted to reference-style links
+ -  References are placed at the end of each section
+ -  Relative/local URLs remain inline
+
+~~~~ markdown
+See the [documentation] for more details.
+
+[documentation]: https://example.com/docs
+~~~~
+
+### Tables
+
+ -  Pipes are aligned accounting for East Asian wide characters
+ -  Minimum column width is maintained
 
 See [SPEC.md] for the complete style specification.
 
 [SPEC.md]: SPEC.md
+
+
+Library usage
+-------------
+
+Hongdown can also be used as a Rust library:
+
+~~~~ rust
+use hongdown::{format, Options};
+
+let input = "# Hello World\nThis is a paragraph.";
+let options = Options::default();
+let output = format(input, &options).unwrap();
+println!("{}", output);
+~~~~
 
 
 TODO
@@ -70,32 +184,31 @@ TODO
 
 ### Phase 1: Core formatting
 
- -  [x] Basic CLI with file input/output
- -  [x] Front matter preservation (YAML/TOML)
- -  [x] Headings (setext and ATX)
- -  [x] Paragraphs with line wrapping
- -  [x] Lists (ordered and unordered)
- -  [x] Code blocks (fenced)
- -  [x] Block quotes
- -  [x] Inline formatting (emphasis, strong, code, links)
- -  [x] Basic test suite
+ -  \[x] Basic CLI with file input/output
+ -  \[x] Front matter preservation (YAML/TOML)
+ -  \[x] Headings (setext and ATX)
+ -  \[x] Paragraphs with line wrapping
+ -  \[x] Lists (ordered and unordered)
+ -  \[x] Code blocks (fenced)
+ -  \[x] Block quotes
+ -  \[x] Inline formatting (emphasis, strong, code, links)
+ -  \[x] Basic test suite
 
 ### Phase 2: Extended syntax
 
- -  [x] Tables with alignment
- -  [x] Definition lists
- -  [x] GitHub alerts/admonitions
- -  [x] Footnotes
- -  [ ] Reference link collection and placement
+ -  \[x] Tables with alignment
+ -  \[x] Definition lists
+ -  \[x] GitHub alerts/admonitions
+ -  \[x] Footnotes
+ -  \[x] Reference link collection and placement
 
 ### Phase 3: Polish
 
- -  [ ] Configuration file support
- -  [ ] Diff output mode
- -  [ ] Check mode for CI integration
- -  [ ] Edge case handling
- -  [ ] Performance optimization
- -  [ ] Comprehensive test coverage
+ -  \[ ] Configuration file support
+ -  \[x] Check mode for CI integration
+ -  \[x] Disable directives
+ -  \[x] Edge case handling
+ -  \[ ] Performance optimization
 
 
 License
