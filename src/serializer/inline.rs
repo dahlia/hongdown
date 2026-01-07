@@ -6,7 +6,7 @@ use super::Serializer;
 use super::escape;
 
 impl<'a> Serializer<'a> {
-    pub(super) fn collect_text<'b>(&self, node: &'b AstNode<'b>) -> String {
+    pub(super) fn collect_text<'b>(&mut self, node: &'b AstNode<'b>) -> String {
         let mut text = String::new();
         self.collect_text_recursive(node, &mut text);
         text
@@ -35,7 +35,7 @@ impl<'a> Serializer<'a> {
         }
     }
 
-    fn collect_text_recursive<'b>(&self, node: &'b AstNode<'b>, text: &mut String) {
+    fn collect_text_recursive<'b>(&mut self, node: &'b AstNode<'b>, text: &mut String) {
         match &node.data.borrow().value {
             NodeValue::Text(t) => {
                 text.push_str(&escape::escape_text(t));
@@ -59,6 +59,26 @@ impl<'a> Serializer<'a> {
             }
             NodeValue::SoftBreak => {
                 text.push(' ');
+            }
+            NodeValue::Link(link) => {
+                // Handle reference-style links in headings
+                if let Some((link_text, label)) = self.get_reference_style_info(node) {
+                    self.format_reference_link(text, &link_text, &label, &link.url, &link.title);
+                } else {
+                    // For inline links, just output plain text (or format as inline?)
+                    // In headings, we typically want reference style for external links
+                    let link_text = self.collect_raw_text(node);
+                    if Self::is_external_url(&link.url) {
+                        self.format_external_link_as_reference(
+                            text,
+                            &link_text,
+                            &link.url,
+                            &link.title,
+                        );
+                    } else {
+                        Self::format_inline_link(text, &link_text, &link.url, &link.title);
+                    }
+                }
             }
             _ => {
                 for child in node.children() {

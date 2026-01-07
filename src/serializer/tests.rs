@@ -1360,3 +1360,24 @@ More text with [link].
         count, result
     );
 }
+
+#[test]
+fn test_heading_with_reference_link() {
+    let input = r#"[BotKit] by Fedify
+==================
+
+[BotKit]: https://botkit.fedify.dev/
+"#;
+    let result = parse_and_serialize_with_source(input);
+    // The reference link in the heading should be preserved
+    assert!(
+        result.contains("[BotKit] by Fedify"),
+        "Heading should contain reference link syntax, got:\n{}",
+        result
+    );
+    assert!(
+        result.contains("[BotKit]: https://botkit.fedify.dev/"),
+        "Reference definition should be preserved, got:\n{}",
+        result
+    );
+}
