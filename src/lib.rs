@@ -63,6 +63,7 @@ pub fn format(input: &str, options: &Options) -> Result<String, FormatError> {
     comrak_options.extension.description_lists = true;
     comrak_options.extension.alerts = true;
     comrak_options.extension.footnotes = true;
+    comrak_options.extension.tasklist = true;
 
     let root = parse_document(&arena, input, &comrak_options);
     let output = serializer::serialize_with_source(root, options, Some(input));

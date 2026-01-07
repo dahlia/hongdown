@@ -253,7 +253,10 @@ impl<'a> Serializer<'a> {
                 self.serialize_alert(node, alert.alert_type);
             }
             NodeValue::Item(_) => {
-                self.serialize_list_item(node);
+                self.serialize_list_item(node, None);
+            }
+            NodeValue::TaskItem(task_item) => {
+                self.serialize_list_item(node, Some(task_item.symbol));
             }
             NodeValue::Paragraph => {
                 self.serialize_paragraph(node);

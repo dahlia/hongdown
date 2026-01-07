@@ -28,7 +28,18 @@ impl<'a> Serializer<'a> {
         self.list_item_index = old_index;
     }
 
-    pub(super) fn serialize_list_item<'b>(&mut self, node: &'b AstNode<'b>) {
+    /// Serialize a list item, optionally with a task list checkbox.
+    ///
+    /// # Arguments
+    ///
+    /// * `node` - The list item node.
+    /// * `task_marker` - For task list items: `Some(Some('x'))` for checked,
+    ///   `Some(None)` for unchecked, `None` for regular list items.
+    pub(super) fn serialize_list_item<'b>(
+        &mut self,
+        node: &'b AstNode<'b>,
+        task_marker: Option<Option<char>>,
+    ) {
         self.list_item_index += 1;
 
         // For loose lists, add a blank line before items (except the first)
@@ -73,6 +84,15 @@ impl<'a> Serializer<'a> {
                 }
             }
             None => {}
+        }
+
+        // Add task list checkbox if this is a task item
+        if let Some(checked) = task_marker {
+            if checked.is_some() {
+                self.output.push_str("[x] ");
+            } else {
+                self.output.push_str("[ ] ");
+            }
         }
 
         // Serialize children, handling nested lists and multiple paragraphs

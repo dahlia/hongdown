@@ -1,9 +1,20 @@
 use super::*;
 use comrak::{Arena, Options as ComrakOptions, parse_document};
 
+fn comrak_options() -> ComrakOptions<'static> {
+    let mut options = ComrakOptions::default();
+    options.extension.front_matter_delimiter = Some("---".to_string());
+    options.extension.table = true;
+    options.extension.description_lists = true;
+    options.extension.alerts = true;
+    options.extension.footnotes = true;
+    options.extension.tasklist = true;
+    options
+}
+
 fn parse_and_serialize(input: &str) -> String {
     let arena = Arena::new();
-    let options = ComrakOptions::default();
+    let options = comrak_options();
     let root = parse_document(&arena, input, &options);
     let format_options = Options::default();
     serialize_with_source(root, &format_options, None)
@@ -11,7 +22,7 @@ fn parse_and_serialize(input: &str) -> String {
 
 fn parse_and_serialize_with_source(input: &str) -> String {
     let arena = Arena::new();
-    let options = ComrakOptions::default();
+    let options = comrak_options();
     let root = parse_document(&arena, input, &options);
     let format_options = Options::default();
     serialize_with_source(root, &format_options, Some(input))
@@ -1237,4 +1248,35 @@ fn test_code_block_with_blank_lines() {
     let result = parse_and_serialize(input);
     assert!(result.contains("line 1"));
     assert!(result.contains("line 3"));
+}
+
+#[test]
+fn test_gfm_task_list_checked() {
+    let input = " - [x] Completed task";
+    let result = parse_and_serialize(input);
+    assert_eq!(result, " -  [x] Completed task\n");
+}
+
+#[test]
+fn test_gfm_task_list_unchecked() {
+    let input = " - [ ] Pending task";
+    let result = parse_and_serialize(input);
+    assert_eq!(result, " -  [ ] Pending task\n");
+}
+
+#[test]
+fn test_gfm_task_list_mixed() {
+    let input = " - [x] Done\n - [ ] Todo\n - [x] Also done";
+    let result = parse_and_serialize(input);
+    assert!(result.contains("[x] Done"));
+    assert!(result.contains("[ ] Todo"));
+    assert!(result.contains("[x] Also done"));
+}
+
+#[test]
+fn test_gfm_task_list_nested() {
+    let input = " - [x] Parent task\n    - [ ] Child task";
+    let result = parse_and_serialize(input);
+    assert!(result.contains("[x] Parent task"));
+    assert!(result.contains("[ ] Child task"));
 }

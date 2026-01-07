@@ -184,31 +184,31 @@ TODO
 
 ### Phase 1: Core formatting
 
- -  \[x] Basic CLI with file input/output
- -  \[x] Front matter preservation (YAML/TOML)
- -  \[x] Headings (setext and ATX)
- -  \[x] Paragraphs with line wrapping
- -  \[x] Lists (ordered and unordered)
- -  \[x] Code blocks (fenced)
- -  \[x] Block quotes
- -  \[x] Inline formatting (emphasis, strong, code, links)
- -  \[x] Basic test suite
+ -  [x] Basic CLI with file input/output
+ -  [x] Front matter preservation (YAML/TOML)
+ -  [x] Headings (setext and ATX)
+ -  [x] Paragraphs with line wrapping
+ -  [x] Lists (ordered and unordered)
+ -  [x] Code blocks (fenced)
+ -  [x] Block quotes
+ -  [x] Inline formatting (emphasis, strong, code, links)
+ -  [x] Basic test suite
 
 ### Phase 2: Extended syntax
 
- -  \[x] Tables with alignment
- -  \[x] Definition lists
- -  \[x] GitHub alerts/admonitions
- -  \[x] Footnotes
- -  \[x] Reference link collection and placement
+ -  [x] Tables with alignment
+ -  [x] Definition lists
+ -  [x] GitHub alerts/admonitions
+ -  [x] Footnotes
+ -  [x] Reference link collection and placement
 
 ### Phase 3: Polish
 
- -  \[ ] Configuration file support
- -  \[x] Check mode for CI integration
- -  \[x] Disable directives
- -  \[x] Edge case handling
- -  \[ ] Performance optimization
+ -  [ ] Configuration file support
+ -  [x] Check mode for CI integration
+ -  [x] Disable directives
+ -  [x] Edge case handling
+ -  [ ] Performance optimization
 
 
 License
