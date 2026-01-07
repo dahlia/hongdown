@@ -231,9 +231,10 @@ impl<'a> Serializer<'a> {
                 // Normalize label too
                 let label = Self::normalize_whitespace(&label);
 
-                // If label is empty, it's collapsed reference (use text as label)
+                // If label is empty, it's collapsed reference - mark with special prefix
+                // to distinguish from shortcut reference
                 let final_label = if label.is_empty() {
-                    text.clone()
+                    format!("\x01{}", text) // Use \x01 as marker for collapsed reference
                 } else {
                     label
                 };
@@ -371,6 +372,33 @@ impl<'a> Serializer<'a> {
         }
     }
 
+    /// Escape pipe characters in table cell content.
+    /// Pipes must be escaped to prevent being interpreted as cell boundaries.
+    fn escape_table_cell(content: &str) -> String {
+        // Escape unescaped pipe characters
+        // We need to be careful not to double-escape already escaped pipes
+        let mut result = String::with_capacity(content.len());
+        let chars: Vec<char> = content.chars().collect();
+        let mut i = 0;
+        while i < chars.len() {
+            if chars[i] == '\\' && i + 1 < chars.len() {
+                // Already escaped character - preserve both
+                result.push(chars[i]);
+                result.push(chars[i + 1]);
+                i += 2;
+            } else if chars[i] == '|' {
+                // Unescaped pipe - escape it
+                result.push('\\');
+                result.push('|');
+                i += 1;
+            } else {
+                result.push(chars[i]);
+                i += 1;
+            }
+        }
+        result
+    }
+
     /// Check if a URL is external (http:// or https://)
     fn is_external_url(url: &str) -> bool {
         url.starts_with("http://") || url.starts_with("https://")
@@ -493,7 +521,15 @@ impl<'a> Serializer<'a> {
                 self.serialize_children(node);
             }
             NodeValue::DescriptionList => {
-                self.serialize_children(node);
+                // Serialize description list items with blank lines between them
+                let children: Vec<_> = node.children().collect();
+                for (i, child) in children.iter().enumerate() {
+                    if i > 0 {
+                        // Add blank line between description items
+                        self.output.push('\n');
+                    }
+                    self.serialize_node(child);
+                }
             }
             NodeValue::DescriptionItem(_) => {
                 self.serialize_children(node);
@@ -764,11 +800,38 @@ impl<'a> Serializer<'a> {
                 self.output.push_str("][");
                 self.output.push_str(&label);
                 self.output.push(']');
+            } else if label.starts_with('\x01') {
+                // Collapsed reference: [text][]
+                // The \x01 prefix marks this as originally collapsed
+                let actual_label = label.strip_prefix('\x01').unwrap();
+                self.output.push('[');
+                self.output.push_str(&text);
+                self.output.push_str("][]");
+
+                // Store the reference definition with actual label (without marker)
+                self.pending_references.insert(
+                    url.to_string(),
+                    ReferenceLink {
+                        label: actual_label.to_string(),
+                        url: url.to_string(),
+                        title: title.to_string(),
+                    },
+                );
             } else if text == label {
                 // Shortcut reference: [text]
                 self.output.push('[');
                 self.output.push_str(&text);
                 self.output.push(']');
+
+                // Store the reference definition for later output
+                self.pending_references.insert(
+                    url.to_string(),
+                    ReferenceLink {
+                        label,
+                        url: url.to_string(),
+                        title: title.to_string(),
+                    },
+                );
             } else {
                 // Full reference: [text][label]
                 self.output.push('[');
@@ -776,17 +839,17 @@ impl<'a> Serializer<'a> {
                 self.output.push_str("][");
                 self.output.push_str(&label);
                 self.output.push(']');
-            }
 
-            // Store the reference definition for later output
-            self.pending_references.insert(
-                url.to_string(),
-                ReferenceLink {
-                    label,
-                    url: url.to_string(),
-                    title: title.to_string(),
-                },
-            );
+                // Store the reference definition for later output
+                self.pending_references.insert(
+                    url.to_string(),
+                    ReferenceLink {
+                        label,
+                        url: url.to_string(),
+                        title: title.to_string(),
+                    },
+                );
+            }
         } else if contains_image {
             // Badge-style inline: [![alt](img-url)](link-url)
             self.output.push('[');
@@ -848,11 +911,35 @@ impl<'a> Serializer<'a> {
         // Check if original was reference style
         if let Some((text, label)) = self.get_reference_style_info(node) {
             // Preserve reference style
-            if text == label {
+            if label.starts_with('\x01') {
+                // Collapsed reference: ![alt][]
+                let actual_label = label.strip_prefix('\x01').unwrap();
+                self.output.push_str("![");
+                self.output.push_str(&text);
+                self.output.push_str("][]");
+
+                self.pending_references.insert(
+                    url.to_string(),
+                    ReferenceLink {
+                        label: actual_label.to_string(),
+                        url: url.to_string(),
+                        title: title.to_string(),
+                    },
+                );
+            } else if text == label {
                 // Shortcut reference: ![alt]
                 self.output.push_str("![");
                 self.output.push_str(&text);
                 self.output.push(']');
+
+                self.pending_references.insert(
+                    url.to_string(),
+                    ReferenceLink {
+                        label,
+                        url: url.to_string(),
+                        title: title.to_string(),
+                    },
+                );
             } else {
                 // Full reference: ![alt][label]
                 self.output.push_str("![");
@@ -860,30 +947,31 @@ impl<'a> Serializer<'a> {
                 self.output.push_str("][");
                 self.output.push_str(&label);
                 self.output.push(']');
+
+                self.pending_references.insert(
+                    url.to_string(),
+                    ReferenceLink {
+                        label,
+                        url: url.to_string(),
+                        title: title.to_string(),
+                    },
+                );
             }
 
-            // Store the reference definition for later output
-            self.pending_references.insert(
-                url.to_string(),
-                ReferenceLink {
-                    label,
-                    url: url.to_string(),
-                    title: title.to_string(),
-                },
-            );
-        } else {
-            // Inline style: ![alt](url)
-            self.output.push_str("![");
-            self.output.push_str(&alt_text);
-            self.output.push_str("](");
-            self.output.push_str(url);
-            if !title.is_empty() {
-                self.output.push_str(" \"");
-                self.output.push_str(title);
-                self.output.push('"');
-            }
-            self.output.push(')');
+            return; // Early return - we've handled the image
         }
+
+        // Inline style: ![alt](url)
+        self.output.push_str("![");
+        self.output.push_str(&alt_text);
+        self.output.push_str("](");
+        self.output.push_str(url);
+        if !title.is_empty() {
+            self.output.push_str(" \"");
+            self.output.push_str(title);
+            self.output.push('"');
+        }
+        self.output.push(')');
     }
 
     fn collect_text<'b>(&self, node: &'b AstNode<'b>) -> String {
@@ -1013,18 +1101,52 @@ impl<'a> Serializer<'a> {
                     // Preserve reference style
                     if contains_image {
                         // Badge-style with reference: [![alt][img-ref]][link-ref]
+                        let actual_label = label.strip_prefix('\x01').unwrap_or(&label);
                         content.push('[');
                         for child in node.children() {
                             self.collect_inline_node(child, content);
                         }
                         content.push_str("][");
-                        content.push_str(&label);
+                        content.push_str(actual_label);
                         content.push(']');
+
+                        self.pending_references.insert(
+                            link.url.clone(),
+                            ReferenceLink {
+                                label: actual_label.to_string(),
+                                url: link.url.clone(),
+                                title: link.title.clone(),
+                            },
+                        );
+                    } else if label.starts_with('\x01') {
+                        // Collapsed reference: [text][]
+                        let actual_label = label.strip_prefix('\x01').unwrap();
+                        content.push('[');
+                        content.push_str(&text);
+                        content.push_str("][]");
+
+                        self.pending_references.insert(
+                            link.url.clone(),
+                            ReferenceLink {
+                                label: actual_label.to_string(),
+                                url: link.url.clone(),
+                                title: link.title.clone(),
+                            },
+                        );
                     } else if text == label {
                         // Shortcut reference: [text]
                         content.push('[');
                         content.push_str(&text);
                         content.push(']');
+
+                        self.pending_references.insert(
+                            link.url.clone(),
+                            ReferenceLink {
+                                label,
+                                url: link.url.clone(),
+                                title: link.title.clone(),
+                            },
+                        );
                     } else {
                         // Full reference: [text][label]
                         content.push('[');
@@ -1032,17 +1154,16 @@ impl<'a> Serializer<'a> {
                         content.push_str("][");
                         content.push_str(&label);
                         content.push(']');
-                    }
 
-                    // Store the reference definition
-                    self.pending_references.insert(
-                        link.url.clone(),
-                        ReferenceLink {
-                            label,
-                            url: link.url.clone(),
-                            title: link.title.clone(),
-                        },
-                    );
+                        self.pending_references.insert(
+                            link.url.clone(),
+                            ReferenceLink {
+                                label,
+                                url: link.url.clone(),
+                                title: link.title.clone(),
+                            },
+                        );
+                    }
                 } else if contains_image {
                     // Badge-style inline: [![alt](img-url)](link-url)
                     content.push('[');
@@ -1497,6 +1618,8 @@ impl<'a> Serializer<'a> {
                 // Use collect_inline_content to preserve links and formatting
                 let mut content = String::new();
                 self.collect_inline_content(cell, &mut content);
+                // Escape pipe characters in table cells to prevent cell boundary confusion
+                let content = Self::escape_table_cell(&content);
                 if i < col_widths.len() {
                     col_widths[i] = col_widths[i].max(content.len());
                 }
@@ -1512,6 +1635,9 @@ impl<'a> Serializer<'a> {
 
         // Output header row
         if let Some(header_cells) = all_cells.first() {
+            if self.in_block_quote {
+                self.output.push_str("> ");
+            }
             self.output.push('|');
             for (i, cell) in header_cells.iter().enumerate() {
                 self.output.push(' ');
@@ -1524,6 +1650,9 @@ impl<'a> Serializer<'a> {
         }
 
         // Output separator row with alignment
+        if self.in_block_quote {
+            self.output.push_str("> ");
+        }
         self.output.push('|');
         for (i, alignment) in alignments.iter().enumerate() {
             self.output.push(' ');
@@ -1552,6 +1681,9 @@ impl<'a> Serializer<'a> {
 
         // Output data rows (skip header)
         for row_cells in all_cells.iter().skip(1) {
+            if self.in_block_quote {
+                self.output.push_str("> ");
+            }
             self.output.push('|');
             for (i, cell) in row_cells.iter().enumerate() {
                 self.output.push(' ');
@@ -1609,11 +1741,28 @@ impl<'a> Serializer<'a> {
         // Use "text" as default if no language specified
         let language = if info.is_empty() { "text" } else { info };
 
+        // Opening fence
+        if self.in_block_quote {
+            self.output.push_str("> ");
+        }
         self.output.push_str(&fence);
         self.output.push(' ');
         self.output.push_str(language);
         self.output.push('\n');
-        self.output.push_str(literal);
+
+        // Content lines
+        for line in literal.lines() {
+            if self.in_block_quote {
+                self.output.push_str("> ");
+            }
+            self.output.push_str(line);
+            self.output.push('\n');
+        }
+
+        // Closing fence
+        if self.in_block_quote {
+            self.output.push_str("> ");
+        }
         self.output.push_str(&fence);
         self.output.push('\n');
     }
