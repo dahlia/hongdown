@@ -96,8 +96,8 @@ is available in [Vertana's AGENTS.md] file.
 ### Definition lists
 
  -  Term on its own line
- -  Definition begins with `:   ` (colon followed by three spaces)
- -  Multiple definitions for same term each start with `:   `
+ -  Definition begins with ` :    ` (colon followed by three spaces)
+ -  Multiple definitions for same term each start with ` :    `
 
 ### Tables
 
@@ -122,7 +122,7 @@ Architecture
 
 The formatter follows a simple pipeline:
 
-~~~~
+~~~~ text
 Input Markdown → Parser (comrak) → AST → Serializer → Output Markdown
 ~~~~
 
@@ -211,7 +211,7 @@ responsibilities include:
 Project structure
 -----------------
 
-~~~~
+~~~~ text
 hongdown/
 ├── src/
 │   ├── main.rs               # CLI entry point

@@ -1,0 +1,201 @@
+name: main
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    tags:
+    - "*.*.*"
+    branches:
+    - "*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - name: Determine version
+      id: version
+      run: |
+        set -euxo pipefail
+        BASE_VERSION=$(
+          cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version'
+        )
+        if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+          VERSION="$BASE_VERSION"
+        else
+          VERSION="${BASE_VERSION}-dev.${GITHUB_RUN_NUMBER}+${GITHUB_SHA::8}"
+        fi
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+    - uses: Swatinem/rust-cache@v2
+    - run: cargo fmt --check
+    - run: cargo clippy -- -D warnings
+    - run: cargo run -- --check *.md
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - ubuntu-latest
+        - macos-latest
+        - windows-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+    - run: cargo test
+
+  build:
+    needs: [version, lint, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - target: x86_64-unknown-linux-gnu
+          os: ubuntu-latest
+        - target: x86_64-unknown-linux-musl
+          os: ubuntu-latest
+        - target: aarch64-unknown-linux-gnu
+          os: ubuntu-latest
+        - target: aarch64-unknown-linux-musl
+          os: ubuntu-latest
+        - target: x86_64-apple-darwin
+          os: macos-latest
+        - target: aarch64-apple-darwin
+          os: macos-latest
+        - target: x86_64-pc-windows-msvc
+          os: windows-latest
+        - target: aarch64-pc-windows-msvc
+          os: windows-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.target }}
+    - uses: Swatinem/rust-cache@v2
+      with:
+        key: ${{ matrix.target }}
+    - if: matrix.target == 'x86_64-unknown-linux-musl'
+      run: sudo apt-get update && sudo apt-get install -y musl-tools
+    - if: matrix.target == 'aarch64-unknown-linux-gnu'
+      run: |
+        set -euxo pipefail
+        sudo apt-get update
+        sudo apt-get install -y gcc-aarch64-linux-gnu
+        echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" \
+          >> "$GITHUB_ENV"
+    - if: matrix.target == 'aarch64-unknown-linux-musl'
+      uses: taiki-e/setup-cross-toolchain-action@v1
+      with:
+        target: ${{ matrix.target }}
+    - run: cargo build --release --target ${{ matrix.target }}
+    - name: Create archive
+      id: archive
+      shell: bash
+      env:
+        VERSION: ${{ needs.version.outputs.version }}
+      run: |
+        set -euxo pipefail
+        ARCHIVE_NAME="hongdown-$VERSION-${{ matrix.target }}"
+        STAGING="hongdown-${{ matrix.target }}"
+        mkdir -p "$STAGING"
+        cp LICENSE README.md "$STAGING/"
+        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          cp "target/${{ matrix.target }}/release/hongdown.exe" "$STAGING/"
+          7z a "$ARCHIVE_NAME.zip" "$STAGING"
+          echo "name=$ARCHIVE_NAME.zip" >> "$GITHUB_OUTPUT"
+        else
+          cp "target/${{ matrix.target }}/release/hongdown" "$STAGING/"
+          tar -cjf "$ARCHIVE_NAME.tar.bz2" "$STAGING"
+          echo "name=$ARCHIVE_NAME.tar.bz2" >> "$GITHUB_OUTPUT"
+        fi
+    - uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.archive.outputs.name }}
+        path: ${{ steps.archive.outputs.name }}
+
+  release:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        merge-multiple: true
+    - run: ls -la artifacts/
+    - uses: softprops/action-gh-release@v2
+      with:
+        files: artifacts/*
+        generate_release_notes: true
+
+  publish:
+    if: >-
+      github.event_name == 'push' && (
+        github.ref_type == 'tag' ||
+        github.ref_name == 'main'
+      )
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    environment:
+      name: crates.io
+      url: https://crates.io/crates/hongdown
+    permissions:
+      id-token: write
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+
+    # For tag releases: verify Cargo.toml version matches tag exactly
+    - name: Verify version matches tag
+      if: github.ref_type == 'tag'
+      env:
+        VERSION: ${{ needs.version.outputs.version }}
+      run: |
+        set -euxo pipefail
+        if [[ "$GITHUB_REF_NAME" != "$VERSION" ]]; then
+          echo "::error::Tag '$GITHUB_REF_NAME' does not match Cargo.toml version '$VERSION'"
+          exit 1
+        fi
+        echo "Version verified: $VERSION"
+
+    # For dev releases: update Cargo.toml with dev version
+    - name: Set dev version
+      if: github.ref_type != 'tag'
+      env:
+        VERSION: ${{ needs.version.outputs.version }}
+      run: |
+        set -euxo pipefail
+        sed -i "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
+        echo "Dev version set: $VERSION"
+        cargo update --package hongdown
+
+    - uses: rust-lang/crates-io-auth-action@v1
+      id: crates-io-auth
+    - run: cargo publish
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ steps.crates-io-auth.outputs.token }}
