@@ -604,9 +604,14 @@ impl<'a> Serializer<'a> {
                     } else {
                         false
                     };
+                // Check if previous element was a heading (empty section case)
+                let prev_is_heading =
+                    matches!(&children[i - 1].data.borrow().value, NodeValue::Heading(_));
                 if !prev_is_front_matter && !prev_is_directive {
                     self.output.push('\n');
-                    if is_h2 {
+                    // Add extra blank line before h2 only if previous wasn't a heading
+                    // (i.e., only when there's content between headings)
+                    if is_h2 && !prev_is_heading {
                         self.output.push('\n');
                     }
                 }
@@ -1964,6 +1969,27 @@ mod tests {
         let result = parse_and_serialize(input);
         // Should have two blank lines before h2 (one after paragraph + one extra)
         assert!(result.contains("Paragraph.\n\n\nSection"));
+    }
+
+    #[test]
+    fn test_serialize_one_blank_line_for_empty_section() {
+        // When h1 is immediately followed by h2 (empty section), only one blank line
+        let input = "# Title\n\n## Section\n\nContent.";
+        let result = parse_and_serialize(input);
+        // Should have only one blank line between headings
+        assert_eq!(result, "Title\n=====\n\nSection\n-------\n\nContent.\n");
+    }
+
+    #[test]
+    fn test_serialize_consecutive_h2_sections() {
+        // When h2 is immediately followed by another h2 (empty section)
+        let input = "## Section 1\n\n## Section 2\n\nContent.";
+        let result = parse_and_serialize(input);
+        // Should have only one blank line between headings
+        assert_eq!(
+            result,
+            "Section 1\n---------\n\nSection 2\n---------\n\nContent.\n"
+        );
     }
 
     fn parse_and_serialize_with_width(input: &str, line_width: usize) -> String {
