@@ -249,9 +249,9 @@ See the [documentation] for more details.
  -  Pipes are aligned accounting for East Asian wide characters
  -  Minimum column width is maintained
 
-See [SPEC.md] for the complete style specification.
+See the [*Markdown style guide*] for more detailed style conventions.
 
-[SPEC.md]: SPEC.md
+[*Markdown style guide*]: ./AGENTS.md#markdown-style-guide
 
 
 Library usage
