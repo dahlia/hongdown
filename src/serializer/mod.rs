@@ -204,6 +204,131 @@ impl<'a> Serializer<'a> {
         output.push('\n');
     }
 
+    /// Add a footnote definition to the pending footnotes.
+    pub fn add_footnote(&mut self, name: String, content: String, reference_line: usize) {
+        use state::FootnoteDefinition;
+        self.pending_footnotes.insert(
+            name.clone(),
+            FootnoteDefinition {
+                name,
+                content,
+                reference_line,
+            },
+        );
+    }
+
+    /// Output pending footnote definitions that were referenced before the given line.
+    /// If `before_line` is None, flush all pending footnotes.
+    fn flush_footnotes_before(&mut self, before_line: Option<usize>) {
+        if self.pending_footnotes.is_empty() {
+            return;
+        }
+
+        // Collect footnotes to emit (referenced before the given line, not already emitted)
+        let mut to_emit: Vec<state::FootnoteDefinition> = Vec::new();
+        let mut to_keep: Vec<(String, state::FootnoteDefinition)> = Vec::new();
+
+        for (name, footnote) in self.pending_footnotes.drain(..) {
+            if self.emitted_footnotes.contains(&name) {
+                continue;
+            }
+            let should_emit = match before_line {
+                Some(line) => footnote.reference_line > 0 && footnote.reference_line < line,
+                None => true,
+            };
+            if should_emit {
+                to_emit.push(footnote);
+            } else {
+                to_keep.push((name, footnote));
+            }
+        }
+
+        // Put back footnotes that shouldn't be emitted yet
+        for (name, footnote) in to_keep {
+            self.pending_footnotes.insert(name, footnote);
+        }
+
+        if to_emit.is_empty() {
+            return;
+        }
+
+        // Add a blank line before footnotes if not already present
+        if !self.output.ends_with("\n\n") {
+            if self.output.ends_with('\n') {
+                self.output.push('\n');
+            } else {
+                self.output.push_str("\n\n");
+            }
+        }
+
+        for footnote in &to_emit {
+            self.write_footnote(footnote);
+            self.emitted_footnotes.insert(footnote.name.clone());
+        }
+    }
+
+    /// Output all pending footnote definitions
+    fn flush_footnotes(&mut self) {
+        self.flush_footnotes_before(None);
+    }
+
+    /// Write a single footnote definition to output, wrapping at 80 characters
+    fn write_footnote(&mut self, footnote: &state::FootnoteDefinition) {
+        let prefix = format!("[^{}]: ", footnote.name);
+        let continuation_indent = "      "; // 6 spaces for continuation lines
+
+        // Wrap content at 80 chars, accounting for prefix on first line
+        let first_line_width = 80 - prefix.len();
+        let continuation_width = 80 - continuation_indent.len();
+
+        let words: Vec<&str> = footnote.content.split_whitespace().collect();
+        if words.is_empty() {
+            self.output.push_str(&prefix);
+            self.output.push('\n');
+            return;
+        }
+
+        let mut lines: Vec<String> = Vec::new();
+        let mut current_line = String::new();
+        let mut is_first_line = true;
+
+        for word in words {
+            let max_width = if is_first_line {
+                first_line_width
+            } else {
+                continuation_width
+            };
+
+            if current_line.is_empty() {
+                current_line.push_str(word);
+            } else if current_line.len() + 1 + word.len() <= max_width {
+                current_line.push(' ');
+                current_line.push_str(word);
+            } else {
+                // Line is full, start a new one
+                lines.push(current_line);
+                current_line = word.to_string();
+                is_first_line = false;
+            }
+        }
+
+        if !current_line.is_empty() {
+            lines.push(current_line);
+        }
+
+        // Output lines
+        for (i, line) in lines.iter().enumerate() {
+            if i == 0 {
+                self.output.push_str(&prefix);
+                self.output.push_str(line);
+            } else {
+                self.output.push_str(continuation_indent);
+                self.output.push_str(line);
+            }
+            self.output.push('\n');
+        }
+    }
+
     pub fn serialize_node<'b>(&mut self, node: &'b AstNode<'b>) {
         match &node.data.borrow().value {
             NodeValue::Document => {
@@ -305,21 +430,33 @@ impl<'a> Serializer<'a> {
                 self.serialize_image(node, &image.url, &image.title);
             }
             NodeValue::FootnoteReference(footnote_ref) => {
+                // Record the line where this footnote is referenced
+                let ref_line = node.data.borrow().sourcepos.start.line;
+                self.footnote_reference_lines
+                    .entry(footnote_ref.name.clone())
+                    .or_insert(ref_line);
                 self.output.push_str("[^");
                 self.output.push_str(&footnote_ref.name);
                 self.output.push(']');
             }
             NodeValue::FootnoteDefinition(footnote_def) => {
-                self.output.push_str("[^");
-                self.output.push_str(&footnote_def.name);
-                self.output.push_str("]: ");
-                // Collect content
+                // Collect content from children
                 let mut content = String::new();
                 for child in node.children() {
                     self.collect_inline_node(child, &mut content);
                 }
-                self.output.push_str(content.trim());
-                self.output.push('\n');
+                // Use the reference line (where footnote was used), not definition line
+                let reference_line = self
+                    .footnote_reference_lines
+                    .get(&footnote_def.name)
+                    .copied()
+                    .unwrap_or(0);
+                // Add to pending footnotes (will be flushed at section end)
+                self.add_footnote(
+                    footnote_def.name.clone(),
+                    content.trim().to_string(),
+                    reference_line,
+                );
             }
             _ => {
                 // For now, just recurse into children for unhandled nodes

@@ -1381,3 +1381,51 @@ fn test_heading_with_reference_link() {
         result
     );
 }
+
+#[test]
+fn test_footnote_at_section_end_before_subheading() {
+    let input = r#"Section
+-------
+
+Text with footnote[^1].
+
+### Subsection
+
+More text here.
+
+[^1]: This is a footnote.
+"#;
+    let result = parse_and_serialize_with_source(input);
+    // Footnote should appear before the subsection, not at document end
+    let footnote_pos = result.find("[^1]: This is a footnote.").unwrap();
+    let subsection_pos = result.find("### Subsection").unwrap();
+    assert!(
+        footnote_pos < subsection_pos,
+        "Footnote should appear before subsection, got:\n{}",
+        result
+    );
+}
+
+#[test]
+fn test_footnote_definition_wrapped_at_80_chars() {
+    let input = r#"Text[^1].
+
+[^1]: This is a very long footnote definition that definitely exceeds eighty characters and should be wrapped.
+"#;
+    let result = parse_and_serialize_with_source(input);
+    // Check that no line exceeds 80 characters
+    for line in result.lines() {
+        assert!(
+            line.len() <= 80,
+            "Line exceeds 80 characters: '{}' (len={})",
+            line,
+            line.len()
+        );
+    }
+    // Should still contain the footnote content
+    assert!(
+        result.contains("This is a very long footnote"),
+        "Footnote content should be preserved, got:\n{}",
+        result
+    );
+}

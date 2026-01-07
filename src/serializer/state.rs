@@ -52,6 +52,15 @@ pub struct ReferenceLink {
     pub title: String,
 }
 
+/// A footnote definition: name -> content
+#[derive(Debug, Clone)]
+pub struct FootnoteDefinition {
+    pub name: String,
+    pub content: String,
+    /// Line number where the footnote was referenced (1-indexed)
+    pub reference_line: usize,
+}
+
 /// The main serializer state for converting comrak AST to formatted Markdown.
 pub struct Serializer<'a> {
     pub output: String,
@@ -71,6 +80,13 @@ pub struct Serializer<'a> {
     pub pending_references: IndexMap<String, ReferenceLink>,
     /// Reference labels that have already been emitted (to avoid duplicates)
     pub emitted_references: std::collections::HashSet<String>,
+    /// Footnote definitions collected for the current section
+    /// Key: name, Value: FootnoteDefinition (insertion order preserved)
+    pub pending_footnotes: IndexMap<String, FootnoteDefinition>,
+    /// Footnote names that have already been emitted (to avoid duplicates)
+    pub emitted_footnotes: std::collections::HashSet<String>,
+    /// Line numbers where footnotes were referenced (key: footnote name)
+    pub footnote_reference_lines: std::collections::HashMap<String, usize>,
     /// Current list nesting depth (0 = not in list, 1 = top-level, 2+ = nested)
     pub list_depth: usize,
     /// Formatting is disabled (by `hongdown-disable` or `hongdown-disable-file`)
@@ -95,6 +111,9 @@ impl<'a> Serializer<'a> {
             in_block_quote: false,
             pending_references: IndexMap::new(),
             emitted_references: std::collections::HashSet::new(),
+            pending_footnotes: IndexMap::new(),
+            emitted_footnotes: std::collections::HashSet::new(),
+            footnote_reference_lines: std::collections::HashMap::new(),
             list_depth: 0,
             formatting_disabled: false,
             skip_next_block: false,

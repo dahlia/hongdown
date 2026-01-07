@@ -9,7 +9,25 @@ use super::wrap;
 impl<'a> Serializer<'a> {
     pub(super) fn serialize_document<'b>(&mut self, node: &'b AstNode<'b>) {
         let children: Vec<_> = node.children().collect();
+
+        // First pass: collect all footnote reference lines
+        // This is needed because FootnoteDefinition nodes come at the end of the AST,
+        // but we need to know reference lines before flushing at section boundaries
+        self.collect_footnote_reference_lines(node);
+
+        // Second pass: process all FootnoteDefinition nodes first
+        // This ensures pending_footnotes is populated before we flush at section boundaries
+        for child in &children {
+            if let NodeValue::FootnoteDefinition(_) = &child.data.borrow().value {
+                self.serialize_node(child);
+            }
+        }
+
         for (i, child) in children.iter().enumerate() {
+            // Skip FootnoteDefinition nodes (already processed above)
+            if let NodeValue::FootnoteDefinition(_) = &child.data.borrow().value {
+                continue;
+            }
             // Check for directives in HTML blocks
             if let NodeValue::HtmlBlock(html_block) = &child.data.borrow().value
                 && let Some(directive) = Directive::parse(&html_block.literal)
@@ -27,6 +45,7 @@ impl<'a> Serializer<'a> {
                             }
                         }
                         self.flush_references();
+                        self.flush_footnotes();
                         return;
                     }
                     Directive::DisableNextLine => {
@@ -69,7 +88,7 @@ impl<'a> Serializer<'a> {
             }
 
             // Check if we're about to start a new section (h2 or h3 heading)
-            // If so, flush any pending references first
+            // If so, flush any pending references and footnotes first
             let heading_level = match &child.data.borrow().value {
                 NodeValue::Heading(h) => Some(h.level),
                 _ => None,
@@ -78,7 +97,10 @@ impl<'a> Serializer<'a> {
             let is_h2_or_h3 = matches!(heading_level, Some(2) | Some(3));
 
             if is_h2_or_h3 && i > 0 {
+                // Get the source line of the heading to flush only earlier footnotes
+                let heading_line = child.data.borrow().sourcepos.start.line;
                 self.flush_references();
+                self.flush_footnotes_before(Some(heading_line));
             }
 
             // Add blank line between block elements (except after front matter)
@@ -138,6 +160,7 @@ impl<'a> Serializer<'a> {
         }
 
         self.flush_references();
+        self.flush_footnotes();
     }
 
     pub(super) fn serialize_description_details<'b>(&mut self, node: &'b AstNode<'b>) {
@@ -303,5 +326,20 @@ impl<'a> Serializer<'a> {
         // so we preserve it verbatim and add a trailing blank line
         self.output.push_str(content.trim());
         self.output.push_str("\n\n");
+    }
+
+    /// Recursively collect footnote reference lines from the AST.
+    /// This must be called before processing the document to ensure
+    /// footnote_reference_lines is populated for all footnotes.
+    fn collect_footnote_reference_lines<'b>(&mut self, node: &'b AstNode<'b>) {
+        if let NodeValue::FootnoteReference(footnote_ref) = &node.data.borrow().value {
+            let ref_line = node.data.borrow().sourcepos.start.line;
+            self.footnote_reference_lines
+                .entry(footnote_ref.name.clone())
+                .or_insert(ref_line);
+        }
+        for child in node.children() {
+            self.collect_footnote_reference_lines(child);
+        }
     }
 }
