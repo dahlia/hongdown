@@ -1280,3 +1280,35 @@ fn test_gfm_task_list_nested() {
     assert!(result.contains("[x] Parent task"));
     assert!(result.contains("[ ] Child task"));
 }
+
+#[test]
+fn test_definition_list_no_extra_blank_line() {
+    let input = "Term\n:   Definition here";
+    let result = parse_and_serialize(input);
+    assert_eq!(result, "Term\n:   Definition here\n");
+}
+
+#[test]
+fn test_definition_list_multiple_items() {
+    let input = "Term1\n:   Definition1\n\nTerm2\n:   Definition2";
+    let result = parse_and_serialize(input);
+    assert!(result.contains("Term1\n:   Definition1"));
+    assert!(result.contains("Term2\n:   Definition2"));
+    // Should have blank line between items, but not between term and definition
+    assert!(!result.contains("Term1\n\n:"));
+}
+
+#[test]
+fn test_abbreviation_definition_preserved() {
+    let input = "*[JSX]: JavaScript XML";
+    let result = parse_and_serialize_with_source(input);
+    assert_eq!(result, "*[JSX]: JavaScript XML\n");
+}
+
+#[test]
+fn test_abbreviation_definition_multiple() {
+    let input = "*[HTML]: HyperText Markup Language\n\n*[CSS]: Cascading Style Sheets";
+    let result = parse_and_serialize_with_source(input);
+    assert!(result.contains("*[HTML]: HyperText Markup Language"));
+    assert!(result.contains("*[CSS]: Cascading Style Sheets"));
+}

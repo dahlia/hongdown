@@ -240,11 +240,12 @@ impl<'a> Serializer<'a> {
                 }
             }
             NodeValue::DescriptionItem(_) => {
+                // Serialize term and details without extra blank lines between them
                 self.serialize_children(node);
             }
             NodeValue::DescriptionTerm => {
                 self.serialize_children(node);
-                self.output.push('\n');
+                // No extra newline here - DescriptionDetails will handle formatting
             }
             NodeValue::DescriptionDetails => {
                 self.serialize_description_details(node);

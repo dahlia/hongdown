@@ -231,6 +231,17 @@ impl<'a> Serializer<'a> {
     }
 
     pub(super) fn serialize_paragraph<'b>(&mut self, node: &'b AstNode<'b>) {
+        // Check if this is a PHP Markdown Extra abbreviation definition (*[abbr]: ...)
+        // These are not parsed by comrak, so we preserve them as-is
+        if let Some(source) = self.extract_source(node) {
+            let trimmed = source.trim();
+            if trimmed.starts_with("*[") && trimmed.contains("]:") {
+                self.output.push_str(trimmed);
+                self.output.push('\n');
+                return;
+            }
+        }
+
         // Collect all inline content first
         let mut inline_content = String::new();
         self.collect_inline_content(node, &mut inline_content);
