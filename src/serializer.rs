@@ -1608,12 +1608,43 @@ impl<'a> Serializer<'a> {
             None => {}
         }
 
-        // Serialize children, handling nested lists specially
-        for child in node.children() {
+        // Serialize children, handling nested lists and multiple paragraphs
+        let children: Vec<_> = node.children().collect();
+        let base_indent = "    ".repeat(self.list_depth);
+
+        for (i, child) in children.iter().enumerate() {
+            let is_first = i == 0;
             match &child.data.borrow().value {
                 NodeValue::List(_) => {
-                    // Add newline before nested list
-                    self.output.push('\n');
+                    // Check if there's a blank line before this nested list in the original
+                    let has_blank_line_before = if i > 0 {
+                        let prev_child = children[i - 1];
+                        let prev_end_line = prev_child.data.borrow().sourcepos.end.line;
+                        let curr_start_line = child.data.borrow().sourcepos.start.line;
+                        // More than one line difference means there's a blank line
+                        curr_start_line > prev_end_line + 1
+                    } else {
+                        false
+                    };
+
+                    if has_blank_line_before {
+                        // Blank line to separate from preceding paragraph
+                        self.output.push_str("\n\n");
+                    } else {
+                        self.output.push('\n');
+                    }
+                    self.serialize_node(child);
+                }
+                NodeValue::Paragraph => {
+                    // For paragraphs after the first, add blank line with proper indentation
+                    if !is_first {
+                        // First \n ends the previous paragraph, second \n creates blank line
+                        self.output.push_str("\n\n");
+                        if self.in_block_quote {
+                            self.output.push_str("> ");
+                        }
+                        self.output.push_str(&base_indent);
+                    }
                     self.serialize_node(child);
                 }
                 _ => {
@@ -2344,6 +2375,33 @@ Check [Python](https://python.org/) too.
         let input = r"path\\to\\file";
         let result = parse_and_serialize(input);
         assert_eq!(result, "path\\\\to\\\\file\n");
+    }
+
+    #[test]
+    fn test_multi_paragraph_list_item() {
+        // Multiple paragraphs within a single list item should be separated by blank lines
+        let input = " -  First paragraph.\n\n    Second paragraph.\n\n    Third paragraph.\n";
+        let result = parse_and_serialize(input);
+        assert_eq!(
+            result,
+            " -  First paragraph.\n\n    Second paragraph.\n\n    Third paragraph.\n"
+        );
+    }
+
+    #[test]
+    fn test_tight_nested_list() {
+        // Nested list directly following text (tight) - no blank line
+        let input = " -  Item:\n     -  Nested 1\n     -  Nested 2\n";
+        let result = parse_and_serialize(input);
+        assert_eq!(result, " -  Item:\n     -  Nested 1\n     -  Nested 2\n");
+    }
+
+    #[test]
+    fn test_loose_nested_list() {
+        // Nested list after blank line (loose) - preserve blank line
+        let input = " -  Item.\n\n     -  Nested 1\n     -  Nested 2\n";
+        let result = parse_and_serialize(input);
+        assert_eq!(result, " -  Item.\n\n     -  Nested 1\n     -  Nested 2\n");
     }
 
     #[test]
