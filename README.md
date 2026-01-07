@@ -219,7 +219,7 @@ TODO
          -  [x] `odd_level_marker` option
          -  [x] `even_level_marker` option
      -  [ ] `[code_block]` section
-         -  [ ] `fence_char` option
+         -  [x] `fence_char` option
          -  [ ] `min_fence_length` option
          -  [ ] `space_after_fence` option
  -  [x] Check mode for CI integration

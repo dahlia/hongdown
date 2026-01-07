@@ -1633,3 +1633,21 @@ fn test_ordered_list_alternating_markers() {
     assert!(result.contains("1) Nested first"), "got: {}", result);
     assert!(result.contains("2) Nested second"), "got: {}", result);
 }
+
+#[test]
+fn test_code_block_fence_char_backtick() {
+    let options = Options {
+        fence_char: '`',
+        ..Options::default()
+    };
+    let result = parse_and_serialize_with_options("~~~~ rust\nfn main() {}\n~~~~", &options);
+    assert!(result.starts_with("````"), "got: {}", result);
+    assert!(result.contains("rust"), "got: {}", result);
+}
+
+#[test]
+fn test_code_block_fence_char_default() {
+    let options = Options::default();
+    let result = parse_and_serialize_with_options("``` rust\nfn main() {}\n```", &options);
+    assert!(result.starts_with("~~~~"), "got: {}", result);
+}

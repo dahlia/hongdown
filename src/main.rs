@@ -56,6 +56,7 @@ fn main() -> ExitCode {
         indent_width: config.list.indent_width,
         odd_level_marker: config.ordered_list.odd_level_marker,
         even_level_marker: config.ordered_list.even_level_marker,
+        fence_char: config.code_block.fence_char,
     };
 
     if args.stdin || args.files.is_empty() {

@@ -49,6 +49,9 @@ pub struct Options {
     /// Marker style for ordered lists at even nesting levels (2nd, 4th, etc.).
     /// Use `.` for `1.` or `)` for `1)`. Default: `)`.
     pub even_level_marker: char,
+
+    /// Fence character for code blocks: `~` or `` ` ``. Default: `~`.
+    pub fence_char: char,
 }
 
 impl Default for Options {
@@ -63,6 +66,7 @@ impl Default for Options {
             indent_width: 4,
             odd_level_marker: '.',
             even_level_marker: ')',
+            fence_char: '~',
         }
     }
 }

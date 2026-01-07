@@ -7,10 +7,13 @@ use super::Serializer;
 impl<'a> Serializer<'a> {
     /// Serialize a code block with indent for description list details.
     pub(super) fn serialize_code_block_with_indent(&mut self, code: &NodeCodeBlock, indent: &str) {
-        let fence = if code.literal.contains("~~~~") {
-            "~~~~~"
+        let fence_char = self.options.fence_char;
+        let base_fence: String = std::iter::repeat_n(fence_char, 4).collect();
+        let long_fence: String = std::iter::repeat_n(fence_char, 5).collect();
+        let fence = if code.literal.contains(&base_fence) {
+            &long_fence
         } else {
-            "~~~~"
+            &base_fence
         };
         self.output.push_str(fence);
         if !code.info.is_empty() {
@@ -36,14 +39,15 @@ impl<'a> Serializer<'a> {
     pub(super) fn serialize_code_block(&mut self, info: &str, literal: &str) {
         // Determine the minimum fence length (at least 4)
         let min_fence_length = 4;
+        let fence_char = self.options.fence_char;
 
-        // Find the longest sequence of tildes in the content
-        let max_tildes_in_content = literal
+        // Find the longest sequence of fence characters in the content
+        let max_fence_in_content = literal
             .lines()
             .filter_map(|line| {
                 let trimmed = line.trim_start();
-                if trimmed.starts_with('~') {
-                    Some(trimmed.chars().take_while(|&c| c == '~').count())
+                if trimmed.starts_with(fence_char) {
+                    Some(trimmed.chars().take_while(|&c| c == fence_char).count())
                 } else {
                     None
                 }
@@ -51,9 +55,9 @@ impl<'a> Serializer<'a> {
             .max()
             .unwrap_or(0);
 
-        // Fence length must be greater than any tilde sequence in content
-        let fence_length = std::cmp::max(min_fence_length, max_tildes_in_content + 1);
-        let fence = "~".repeat(fence_length);
+        // Fence length must be greater than any fence sequence in content
+        let fence_length = std::cmp::max(min_fence_length, max_fence_in_content + 1);
+        let fence: String = std::iter::repeat_n(fence_char, fence_length).collect();
 
         // Use "text" as default if no language specified
         let language = if info.is_empty() { "text" } else { info };
@@ -94,14 +98,15 @@ impl<'a> Serializer<'a> {
     ) {
         // Determine the minimum fence length (at least 4)
         let min_fence_length = 4;
+        let fence_char = self.options.fence_char;
 
-        // Find the longest sequence of tildes in the content
-        let max_tildes_in_content = literal
+        // Find the longest sequence of fence characters in the content
+        let max_fence_in_content = literal
             .lines()
             .filter_map(|line| {
                 let trimmed = line.trim_start();
-                if trimmed.starts_with('~') {
-                    Some(trimmed.chars().take_while(|&c| c == '~').count())
+                if trimmed.starts_with(fence_char) {
+                    Some(trimmed.chars().take_while(|&c| c == fence_char).count())
                 } else {
                     None
                 }
@@ -109,9 +114,9 @@ impl<'a> Serializer<'a> {
             .max()
             .unwrap_or(0);
 
-        // Fence length must be greater than any tilde sequence in content
-        let fence_length = std::cmp::max(min_fence_length, max_tildes_in_content + 1);
-        let fence = "~".repeat(fence_length);
+        // Fence length must be greater than any fence sequence in content
+        let fence_length = std::cmp::max(min_fence_length, max_fence_in_content + 1);
+        let fence: String = std::iter::repeat_n(fence_char, fence_length).collect();
 
         // Output opening fence with optional language
         self.output.push_str(&fence);
