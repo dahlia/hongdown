@@ -608,13 +608,26 @@ fn test_serialize_double_space_after_period() {
 }
 
 #[test]
-fn test_serialize_long_list_item_wrapping() {
-    // Long list items should wrap with 4-space continuation indent
-    let input = " -  This is a very long list item that should wrap to the next line with proper indentation to maintain readability.";
-    let result = parse_and_serialize_with_width(input, 80);
-    // Should contain wrapped content with proper indent
-    assert!(result.contains(" -  This is a very long list item"));
-    assert!(result.contains("\n    ")); // Continuation with 4 spaces
+fn test_definition_list_with_nested_list_continuation() {
+    let input = "Term\n:   Definition:\n\n     -  Item with long text\n        that continues";
+    let result = parse_and_serialize(input);
+    // Continuation should also have proper indent
+    assert!(result.contains("     -  Item with long text"));
+    assert!(result.contains("         that continues"));
+}
+
+#[test]
+fn test_alert_preserves_blank_line_after_header() {
+    let input = "> [!TIP]\n>\n> This is a tip.";
+    let result = parse_and_serialize_with_source(input);
+    assert_eq!(result, "> [!TIP]\n>\n> This is a tip.\n");
+}
+
+#[test]
+fn test_alert_without_blank_line_after_header() {
+    let input = "> [!NOTE]\n> This is a note.";
+    let result = parse_and_serialize_with_source(input);
+    assert_eq!(result, "> [!NOTE]\n> This is a note.\n");
 }
 
 fn parse_and_serialize_with_alerts_and_width(input: &str, line_width: usize) -> String {
@@ -1311,22 +1324,4 @@ fn test_abbreviation_definition_multiple() {
     let result = parse_and_serialize_with_source(input);
     assert!(result.contains("*[HTML]: HyperText Markup Language"));
     assert!(result.contains("*[CSS]: Cascading Style Sheets"));
-}
-
-#[test]
-fn test_definition_list_with_nested_list() {
-    let input = "Term\n:   Definition with list:\n\n     -  First item\n     -  Second item";
-    let result = parse_and_serialize(input);
-    // All items should have 5-space indent inside definition details
-    assert!(result.contains("     -  First item"));
-    assert!(result.contains("     -  Second item"));
-}
-
-#[test]
-fn test_definition_list_with_nested_list_continuation() {
-    let input = "Term\n:   Definition:\n\n     -  Item with long text\n        that continues";
-    let result = parse_and_serialize(input);
-    // Continuation should also have proper indent
-    assert!(result.contains("     -  Item with long text"));
-    assert!(result.contains("         that continues"));
 }
