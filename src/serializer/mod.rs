@@ -184,6 +184,172 @@ impl<'a> Serializer<'a> {
         output.push('\n');
     }
 
+    /// Format a reference-style link and write to output buffer.
+    /// Returns true if reference style was used, false otherwise.
+    fn format_reference_link(
+        &mut self,
+        output: &mut String,
+        text: &str,
+        label: &str,
+        url: &str,
+        title: &str,
+        contains_image: bool,
+        image_content: Option<&str>,
+    ) -> bool {
+        if contains_image {
+            // Badge-style with reference: [![alt][img-ref]][link-ref]
+            let actual_label = label.strip_prefix('\x01').unwrap_or(label);
+            output.push('[');
+            if let Some(img) = image_content {
+                output.push_str(img);
+            }
+            output.push_str("][");
+            output.push_str(actual_label);
+            output.push(']');
+
+            self.add_reference(actual_label.to_string(), url.to_string(), title.to_string());
+            true
+        } else if label.starts_with('\x01') {
+            // Collapsed reference: [text][]
+            let actual_label = label.strip_prefix('\x01').unwrap();
+            output.push('[');
+            output.push_str(text);
+            output.push_str("][]");
+
+            self.add_reference(actual_label.to_string(), url.to_string(), title.to_string());
+            true
+        } else if text == label {
+            // Shortcut reference: [text]
+            output.push('[');
+            output.push_str(text);
+            output.push(']');
+
+            self.add_reference(label.to_string(), url.to_string(), title.to_string());
+            true
+        } else {
+            // Full reference: [text][label]
+            output.push('[');
+            output.push_str(text);
+            output.push_str("][");
+            output.push_str(label);
+            output.push(']');
+
+            self.add_reference(label.to_string(), url.to_string(), title.to_string());
+            true
+        }
+    }
+
+    /// Format an inline-style link and write to output buffer.
+    fn format_inline_link(
+        output: &mut String,
+        text: &str,
+        url: &str,
+        title: &str,
+        contains_image: bool,
+        image_content: Option<&str>,
+    ) {
+        if contains_image {
+            // Badge-style inline: [![alt](img-url)](link-url)
+            output.push('[');
+            if let Some(img) = image_content {
+                output.push_str(img);
+            }
+            output.push_str("](");
+            output.push_str(url);
+            if !title.is_empty() {
+                output.push_str(" \"");
+                output.push_str(title);
+                output.push('"');
+            }
+            output.push(')');
+        } else {
+            output.push('[');
+            output.push_str(text);
+            output.push_str("](");
+            output.push_str(url);
+            if !title.is_empty() {
+                output.push_str(" \"");
+                output.push_str(title);
+                output.push('"');
+            }
+            output.push(')');
+        }
+    }
+
+    /// Format an autolink and write to output buffer.
+    fn format_autolink(output: &mut String, url: &str) {
+        output.push('<');
+        output.push_str(url);
+        output.push('>');
+    }
+
+    /// Format an external link as reference style and write to output buffer.
+    fn format_external_link_as_reference(
+        &mut self,
+        output: &mut String,
+        text: &str,
+        url: &str,
+        title: &str,
+    ) {
+        // Normalize: replace SoftBreak markers with spaces for shortcut refs
+        let normalized_text = text.replace('\x00', " ");
+        output.push('[');
+        output.push_str(&normalized_text);
+        output.push(']');
+
+        self.add_reference(normalized_text, url.to_string(), title.to_string());
+    }
+
+    /// Format a reference-style image and write to output buffer.
+    fn format_reference_image(
+        &mut self,
+        output: &mut String,
+        text: &str,
+        label: &str,
+        url: &str,
+        title: &str,
+    ) {
+        if label.starts_with('\x01') {
+            // Collapsed reference: ![alt][]
+            let actual_label = label.strip_prefix('\x01').unwrap();
+            output.push_str("![");
+            output.push_str(text);
+            output.push_str("][]");
+
+            self.add_reference(actual_label.to_string(), url.to_string(), title.to_string());
+        } else if text == label {
+            // Shortcut reference: ![alt]
+            output.push_str("![");
+            output.push_str(text);
+            output.push(']');
+
+            self.add_reference(label.to_string(), url.to_string(), title.to_string());
+        } else {
+            // Full reference: ![alt][label]
+            output.push_str("![");
+            output.push_str(text);
+            output.push_str("][");
+            output.push_str(label);
+            output.push(']');
+
+            self.add_reference(label.to_string(), url.to_string(), title.to_string());
+        }
+    }
+
+    /// Format an inline-style image and write to output buffer.
+    fn format_inline_image(output: &mut String, alt_text: &str, url: &str, title: &str) {
+        output.push_str("![");
+        output.push_str(alt_text);
+        output.push_str("](");
+        output.push_str(url);
+        if !title.is_empty() {
+            output.push_str(" \"");
+            output.push_str(title);
+            output.push('"');
+        }
+        output.push(')');
+    }
+
     pub fn serialize_node<'b>(&mut self, node: &'b AstNode<'b>) {
         match &node.data.borrow().value {
             NodeValue::Document => {
@@ -571,7 +737,7 @@ impl<'a> Serializer<'a> {
 
         // Check if original was reference style
         if let Some((text, label)) = self.get_reference_style_info(node) {
-            // Preserve reference style
+            // For badge-style, serialize children first to get image content
             if contains_image {
                 // Badge-style with reference: [![alt][img-ref]][link-ref]
                 self.output.push('[');
@@ -579,36 +745,15 @@ impl<'a> Serializer<'a> {
                     self.serialize_node(child);
                 }
                 self.output.push_str("][");
-                self.output.push_str(&label);
+                let actual_label = label.strip_prefix('\x01').unwrap_or(&label);
+                self.output.push_str(actual_label);
                 self.output.push(']');
-            } else if label.starts_with('\x01') {
-                // Collapsed reference: [text][]
-                // The \x01 prefix marks this as originally collapsed
-                let actual_label = label.strip_prefix('\x01').unwrap();
-                self.output.push('[');
-                self.output.push_str(&text);
-                self.output.push_str("][]");
-
-                // Store the reference definition with actual label (without marker)
                 self.add_reference(actual_label.to_string(), url.to_string(), title.to_string());
-            } else if text == label {
-                // Shortcut reference: [text]
-                self.output.push('[');
-                self.output.push_str(&text);
-                self.output.push(']');
-
-                // Store the reference definition for later output
-                self.add_reference(label, url.to_string(), title.to_string());
             } else {
-                // Full reference: [text][label]
-                self.output.push('[');
-                self.output.push_str(&text);
-                self.output.push_str("][");
-                self.output.push_str(&label);
-                self.output.push(']');
-
-                // Store the reference definition for later output
-                self.add_reference(label, url.to_string(), title.to_string());
+                // Use helper for non-badge reference links
+                let mut output = String::new();
+                self.format_reference_link(&mut output, &text, &label, url, title, false, None);
+                self.output.push_str(&output);
             }
         } else if contains_image {
             // Badge-style inline: [![alt](img-url)](link-url)
@@ -625,35 +770,16 @@ impl<'a> Serializer<'a> {
             }
             self.output.push(')');
         } else if is_autolink {
-            // Autolink: use <url> format
-            self.output.push('<');
-            self.output.push_str(url);
-            self.output.push('>');
+            Self::format_autolink(&mut self.output, url);
         } else if Self::is_external_url(url) {
-            // External URL: use reference link style
             let link_text = self.collect_text(node);
-            let label = link_text.clone();
-
-            // Output the reference: [text]
-            self.output.push('[');
-            self.output.push_str(&link_text);
-            self.output.push(']');
-
-            // Store the reference definition for later output
-            self.add_reference(label, url.to_string(), title.to_string());
+            let mut output = String::new();
+            self.format_external_link_as_reference(&mut output, &link_text, url, title);
+            self.output.push_str(&output);
         } else {
             // Relative/local URL: keep as inline link
             let link_text = self.collect_text(node);
-            self.output.push('[');
-            self.output.push_str(&link_text);
-            self.output.push_str("](");
-            self.output.push_str(url);
-            if !title.is_empty() {
-                self.output.push_str(" \"");
-                self.output.push_str(title);
-                self.output.push('"');
-            }
-            self.output.push(')');
+            Self::format_inline_link(&mut self.output, &link_text, url, title, false, None);
         }
     }
 
@@ -663,47 +789,15 @@ impl<'a> Serializer<'a> {
 
         // Check if original was reference style
         if let Some((text, label)) = self.get_reference_style_info(node) {
-            // Preserve reference style
-            if label.starts_with('\x01') {
-                // Collapsed reference: ![alt][]
-                let actual_label = label.strip_prefix('\x01').unwrap();
-                self.output.push_str("![");
-                self.output.push_str(&text);
-                self.output.push_str("][]");
-
-                self.add_reference(actual_label.to_string(), url.to_string(), title.to_string());
-            } else if text == label {
-                // Shortcut reference: ![alt]
-                self.output.push_str("![");
-                self.output.push_str(&text);
-                self.output.push(']');
-
-                self.add_reference(label, url.to_string(), title.to_string());
-            } else {
-                // Full reference: ![alt][label]
-                self.output.push_str("![");
-                self.output.push_str(&text);
-                self.output.push_str("][");
-                self.output.push_str(&label);
-                self.output.push(']');
-
-                self.add_reference(label, url.to_string(), title.to_string());
-            }
-
-            return; // Early return - we've handled the image
+            // Use a temporary buffer to avoid double borrow
+            let mut output = String::new();
+            self.format_reference_image(&mut output, &text, &label, url, title);
+            self.output.push_str(&output);
+            return;
         }
 
         // Inline style: ![alt](url)
-        self.output.push_str("![");
-        self.output.push_str(&alt_text);
-        self.output.push_str("](");
-        self.output.push_str(url);
-        if !title.is_empty() {
-            self.output.push_str(" \"");
-            self.output.push_str(title);
-            self.output.push('"');
-        }
-        self.output.push(')');
+        Self::format_inline_image(&mut self.output, &alt_text, url, title);
     }
 
     fn collect_text<'b>(&self, node: &'b AstNode<'b>) -> String {
@@ -852,37 +946,21 @@ impl<'a> Serializer<'a> {
                             link.url.clone(),
                             link.title.clone(),
                         );
-                    } else if label.starts_with('\x01') {
-                        // Collapsed reference: [text][]
-                        let actual_label = label.strip_prefix('\x01').unwrap();
-                        content.push('[');
-                        content.push_str(&text);
-                        content.push_str("][]");
-
-                        self.add_reference(
-                            actual_label.to_string(),
-                            link.url.clone(),
-                            link.title.clone(),
-                        );
-                    } else if text == label {
-                        // Shortcut reference: [text]
-                        content.push('[');
-                        content.push_str(&text);
-                        content.push(']');
-
-                        self.add_reference(label, link.url.clone(), link.title.clone());
                     } else {
-                        // Full reference: [text][label]
-                        content.push('[');
-                        content.push_str(&text);
-                        content.push_str("][");
-                        content.push_str(&label);
-                        content.push(']');
-
-                        self.add_reference(label, link.url.clone(), link.title.clone());
+                        // Non-badge reference links: use helper
+                        self.format_reference_link(
+                            content,
+                            &text,
+                            &label,
+                            &link.url,
+                            &link.title,
+                            false,
+                            None,
+                        );
                     }
                 } else if contains_image {
                     // Badge-style inline: [![alt](img-url)](link-url)
+                    // Need to iterate children, so can't use helper directly
                     content.push('[');
                     for child in node.children() {
                         self.collect_inline_node(child, content);
@@ -896,28 +974,18 @@ impl<'a> Serializer<'a> {
                     }
                     content.push(')');
                 } else if is_autolink {
-                    // Autolink: use <url> format
-                    content.push('<');
-                    content.push_str(&link.url);
-                    content.push('>');
+                    Self::format_autolink(content, &link.url);
                 } else if Self::is_external_url(&link.url) {
-                    // External URL: use reference link style
+                    // External URL: collect link text first
                     let mut link_text = String::new();
                     for child in node.children() {
                         self.collect_inline_node(child, &mut link_text);
                     }
-                    // Normalize: replace SoftBreak markers with spaces for shortcut refs
-                    // so link text matches reference label
-                    let normalized_text = link_text.replace('\x00', " ");
-                    content.push('[');
-                    content.push_str(&normalized_text);
-                    content.push(']');
-
-                    // Store the reference definition
-                    self.add_reference(
-                        normalized_text.clone(),
-                        link.url.clone(),
-                        link.title.clone(),
+                    self.format_external_link_as_reference(
+                        content,
+                        &link_text,
+                        &link.url,
+                        &link.title,
                     );
                 } else {
                     // Relative/local URL: keep as inline link
@@ -925,55 +993,27 @@ impl<'a> Serializer<'a> {
                     for child in node.children() {
                         self.collect_inline_node(child, &mut link_text);
                     }
-                    content.push('[');
-                    content.push_str(&link_text);
-                    content.push_str("](");
-                    content.push_str(&link.url);
-                    if !link.title.is_empty() {
-                        content.push_str(" \"");
-                        content.push_str(&link.title);
-                        content.push('"');
-                    }
-                    content.push(')');
+                    Self::format_inline_link(
+                        content,
+                        &link_text,
+                        &link.url,
+                        &link.title,
+                        false,
+                        None,
+                    );
                 }
             }
             NodeValue::Image(image) => {
                 // Check if original was reference style
                 if let Some((text, label)) = self.get_reference_style_info(node) {
-                    // Preserve reference style
-                    if text == label {
-                        // Shortcut reference: ![alt]
-                        content.push_str("![");
-                        content.push_str(&text);
-                        content.push(']');
-                    } else {
-                        // Full reference: ![alt][label]
-                        content.push_str("![");
-                        content.push_str(&text);
-                        content.push_str("][");
-                        content.push_str(&label);
-                        content.push(']');
-                    }
-
-                    // Store the reference definition
-                    self.add_reference(label, image.url.clone(), image.title.clone());
+                    self.format_reference_image(content, &text, &label, &image.url, &image.title);
                 } else {
                     // Inline style: collect alt text and use inline syntax
                     let mut alt_text = String::new();
                     for child in node.children() {
                         self.collect_inline_node(child, &mut alt_text);
                     }
-
-                    content.push_str("![");
-                    content.push_str(&alt_text);
-                    content.push_str("](");
-                    content.push_str(&image.url);
-                    if !image.title.is_empty() {
-                        content.push_str(" \"");
-                        content.push_str(&image.title);
-                        content.push('"');
-                    }
-                    content.push(')');
+                    Self::format_inline_image(content, &alt_text, &image.url, &image.title);
                 }
             }
             NodeValue::HtmlInline(html) => {
