@@ -96,20 +96,29 @@ impl<'a> Serializer<'a> {
                 }
             }
             Some(ListType::Ordered) => {
+                // Determine marker based on nesting level (odd=1,3,5..., even=2,4,6...)
+                let marker = if self.list_depth % 2 == 1 {
+                    self.options.odd_level_marker
+                } else {
+                    self.options.even_level_marker
+                };
                 if self.list_depth > 1 {
-                    // Nested ordered: "N. "
+                    // Nested ordered: "N. " or "N) "
                     self.output.push_str(&self.list_item_index.to_string());
-                    self.output.push_str(". ");
+                    self.output.push(marker);
+                    self.output.push(' ');
                 } else if self.in_description_details {
                     // Inside description details: "N. " (no leading space)
                     self.output.push_str(&self.list_item_index.to_string());
-                    self.output.push_str(". ");
+                    self.output.push(marker);
+                    self.output.push(' ');
                 } else {
                     // Top-level ordered: " N. " format (leading spaces + number + marker)
                     self.output
                         .push_str(&" ".repeat(self.options.leading_spaces));
                     self.output.push_str(&self.list_item_index.to_string());
-                    self.output.push_str(". ");
+                    self.output.push(marker);
+                    self.output.push(' ');
                 }
             }
             None => {}

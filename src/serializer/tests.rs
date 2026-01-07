@@ -1595,3 +1595,41 @@ fn test_list_indent_width_default() {
     let result = parse_and_serialize_with_options(" -  Item one\n     -  Nested", &options);
     assert_eq!(result, " -  Item one\n    -  Nested\n");
 }
+
+#[test]
+fn test_ordered_list_odd_level_marker() {
+    let options = Options {
+        odd_level_marker: ')',
+        ..Options::default()
+    };
+    let result = parse_and_serialize_with_options(" 1. First\n 2. Second", &options);
+    assert_eq!(result, " 1) First\n 2) Second\n");
+}
+
+#[test]
+fn test_ordered_list_even_level_marker() {
+    let options = Options {
+        even_level_marker: '.',
+        ..Options::default()
+    };
+    // Nested ordered list (level 2)
+    let result = parse_and_serialize_with_options(
+        " 1. First\n     1. Nested first\n     2. Nested second",
+        &options,
+    );
+    assert!(result.contains("1. Nested first"), "got: {}", result);
+    assert!(result.contains("2. Nested second"), "got: {}", result);
+}
+
+#[test]
+fn test_ordered_list_alternating_markers() {
+    let options = Options::default();
+    // Level 1 uses '.', level 2 uses ')'
+    let result = parse_and_serialize_with_options(
+        " 1. First\n     1. Nested first\n     2. Nested second",
+        &options,
+    );
+    assert!(result.contains(" 1. First"), "got: {}", result);
+    assert!(result.contains("1) Nested first"), "got: {}", result);
+    assert!(result.contains("2) Nested second"), "got: {}", result);
+}

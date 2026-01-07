@@ -215,9 +215,9 @@ TODO
          -  [x] `leading_spaces` option
          -  [x] `trailing_spaces` option
          -  [x] `indent_width` option
-     -  [ ] `[ordered_list]` section
-         -  [ ] `odd_level_marker` option
-         -  [ ] `even_level_marker` option
+     -  [x] `[ordered_list]` section
+         -  [x] `odd_level_marker` option
+         -  [x] `even_level_marker` option
      -  [ ] `[code_block]` section
          -  [ ] `fence_char` option
          -  [ ] `min_fence_length` option

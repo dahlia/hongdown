@@ -54,6 +54,8 @@ fn main() -> ExitCode {
         leading_spaces: config.list.leading_spaces,
         trailing_spaces: config.list.trailing_spaces,
         indent_width: config.list.indent_width,
+        odd_level_marker: config.ordered_list.odd_level_marker,
+        even_level_marker: config.ordered_list.even_level_marker,
     };
 
     if args.stdin || args.files.is_empty() {

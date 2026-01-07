@@ -41,6 +41,14 @@ pub struct Options {
 
     /// Indentation width for nested list items. Default: 4.
     pub indent_width: usize,
+
+    /// Marker style for ordered lists at odd nesting levels (1st, 3rd, etc.).
+    /// Use `.` for `1.` or `)` for `1)`. Default: `.`.
+    pub odd_level_marker: char,
+
+    /// Marker style for ordered lists at even nesting levels (2nd, 4th, etc.).
+    /// Use `.` for `1.` or `)` for `1)`. Default: `)`.
+    pub even_level_marker: char,
 }
 
 impl Default for Options {
@@ -53,6 +61,8 @@ impl Default for Options {
             leading_spaces: 1,
             trailing_spaces: 2,
             indent_width: 4,
+            odd_level_marker: '.',
+            even_level_marker: ')',
         }
     }
 }
