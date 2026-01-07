@@ -52,6 +52,9 @@ pub struct Options {
 
     /// Fence character for code blocks: `~` or `` ` ``. Default: `~`.
     pub fence_char: char,
+
+    /// Minimum fence length for code blocks. Default: 4.
+    pub min_fence_length: usize,
 }
 
 impl Default for Options {
@@ -67,6 +70,7 @@ impl Default for Options {
             odd_level_marker: '.',
             even_level_marker: ')',
             fence_char: '~',
+            min_fence_length: 4,
         }
     }
 }

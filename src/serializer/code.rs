@@ -8,8 +8,9 @@ impl<'a> Serializer<'a> {
     /// Serialize a code block with indent for description list details.
     pub(super) fn serialize_code_block_with_indent(&mut self, code: &NodeCodeBlock, indent: &str) {
         let fence_char = self.options.fence_char;
-        let base_fence: String = std::iter::repeat_n(fence_char, 4).collect();
-        let long_fence: String = std::iter::repeat_n(fence_char, 5).collect();
+        let min_len = self.options.min_fence_length;
+        let base_fence: String = std::iter::repeat_n(fence_char, min_len).collect();
+        let long_fence: String = std::iter::repeat_n(fence_char, min_len + 1).collect();
         let fence = if code.literal.contains(&base_fence) {
             &long_fence
         } else {
@@ -37,8 +38,8 @@ impl<'a> Serializer<'a> {
     }
 
     pub(super) fn serialize_code_block(&mut self, info: &str, literal: &str) {
-        // Determine the minimum fence length (at least 4)
-        let min_fence_length = 4;
+        // Determine the minimum fence length from options
+        let min_fence_length = self.options.min_fence_length;
         let fence_char = self.options.fence_char;
 
         // Find the longest sequence of fence characters in the content
@@ -96,8 +97,8 @@ impl<'a> Serializer<'a> {
         literal: &str,
         indent: &str,
     ) {
-        // Determine the minimum fence length (at least 4)
-        let min_fence_length = 4;
+        // Determine the minimum fence length from options
+        let min_fence_length = self.options.min_fence_length;
         let fence_char = self.options.fence_char;
 
         // Find the longest sequence of fence characters in the content
