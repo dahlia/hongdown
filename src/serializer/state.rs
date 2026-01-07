@@ -108,6 +108,8 @@ pub struct Serializer<'a> {
     pub in_description_details: bool,
     /// Warnings generated during formatting
     pub warnings: Vec<Warning>,
+    /// Maximum number of items in the current ordered list (for padding calculation)
+    pub ordered_list_max_items: usize,
 }
 
 impl<'a> Serializer<'a> {
@@ -131,6 +133,7 @@ impl<'a> Serializer<'a> {
             skip_until_section: false,
             in_description_details: false,
             warnings: Vec::new(),
+            ordered_list_max_items: 0,
         }
     }
 

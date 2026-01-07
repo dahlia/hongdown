@@ -2,9 +2,18 @@
 
 use comrak::nodes::{AstNode, ListType, NodeValue};
 
+use crate::config::OrderedListPad;
+
 use super::Serializer;
 
 impl<'a> Serializer<'a> {
+    /// Count the number of items in a list node.
+    fn count_list_items<'b>(node: &'b AstNode<'b>) -> usize {
+        node.children()
+            .filter(|child| matches!(child.data.borrow().value, NodeValue::Item(_)))
+            .count()
+    }
+
     pub(super) fn serialize_list<'b>(
         &mut self,
         node: &'b AstNode<'b>,
@@ -14,11 +23,17 @@ impl<'a> Serializer<'a> {
         let old_list_type = self.list_type;
         let old_list_tight = self.list_tight;
         let old_index = self.list_item_index;
+        let old_max_items = self.ordered_list_max_items;
 
         self.list_type = Some(list_type);
         self.list_tight = tight;
         self.list_item_index = 0;
         self.list_depth += 1;
+
+        // For ordered lists, count items to determine padding width
+        if matches!(list_type, ListType::Ordered) {
+            self.ordered_list_max_items = Self::count_list_items(node);
+        }
 
         self.serialize_children(node);
 
@@ -26,6 +41,7 @@ impl<'a> Serializer<'a> {
         self.list_type = old_list_type;
         self.list_tight = old_list_tight;
         self.list_item_index = old_index;
+        self.ordered_list_max_items = old_max_items;
     }
 
     /// Serialize a list item, optionally with a task list checkbox.
@@ -63,7 +79,11 @@ impl<'a> Serializer<'a> {
         // Calculate indentation for nested lists
         // Level 1: " -  " (leading space + hyphen + trailing spaces)
         // Level 2+: indent_width spaces per nesting level, then " -  " prefix
-        let indent_width = self.options.indent_width;
+        // Use different indent_width for ordered vs unordered lists
+        let indent_width = match self.list_type {
+            Some(ListType::Ordered) => self.options.ordered_list_indent_width,
+            _ => self.options.indent_width,
+        };
         if self.list_depth > 1 {
             let indent = format!(
                 "{}{}",
@@ -98,18 +118,54 @@ impl<'a> Serializer<'a> {
                 } else {
                     self.options.even_level_marker
                 };
-                let leading = " ".repeat(self.options.leading_spaces);
+
+                // Calculate padding for number alignment
+                let max_num_width = self.ordered_list_max_items.to_string().len();
+                let current_num = self.list_item_index.to_string();
+                let current_num_width = current_num.len();
+                let padding_spaces = max_num_width.saturating_sub(current_num_width);
+
+                let base_leading = " ".repeat(self.options.leading_spaces);
+                let base_trailing = " ".repeat(self.options.trailing_spaces);
+
                 if self.in_description_details && self.list_depth == 1 {
-                    // Inside description details at top level: "N. " (no leading space)
-                    self.output.push_str(&self.list_item_index.to_string());
-                    self.output.push(marker);
-                    self.output.push(' ');
+                    // Inside description details at top level: no leading space
+                    match self.options.ordered_list_pad {
+                        OrderedListPad::Start => {
+                            // Pad before number: "  1. "
+                            self.output.push_str(&" ".repeat(padding_spaces));
+                            self.output.push_str(&current_num);
+                            self.output.push(marker);
+                            self.output.push_str(&base_trailing);
+                        }
+                        OrderedListPad::End => {
+                            // Pad after marker: "1.   "
+                            self.output.push_str(&current_num);
+                            self.output.push(marker);
+                            self.output.push_str(&base_trailing);
+                            self.output.push_str(&" ".repeat(padding_spaces));
+                        }
+                    }
                 } else {
                     // All other cases: " N. " format (leading spaces + number + marker)
-                    self.output.push_str(&leading);
-                    self.output.push_str(&self.list_item_index.to_string());
-                    self.output.push(marker);
-                    self.output.push(' ');
+                    match self.options.ordered_list_pad {
+                        OrderedListPad::Start => {
+                            // Pad before number: "   1. "
+                            self.output.push_str(&base_leading);
+                            self.output.push_str(&" ".repeat(padding_spaces));
+                            self.output.push_str(&current_num);
+                            self.output.push(marker);
+                            self.output.push_str(&base_trailing);
+                        }
+                        OrderedListPad::End => {
+                            // Pad after marker: " 1.   "
+                            self.output.push_str(&base_leading);
+                            self.output.push_str(&current_num);
+                            self.output.push(marker);
+                            self.output.push_str(&base_trailing);
+                            self.output.push_str(&" ".repeat(padding_spaces));
+                        }
+                    }
                 }
             }
             None => {}

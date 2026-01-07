@@ -147,6 +147,8 @@ indent_width = 4          # Indentation for nested items
 [ordered_list]
 odd_level_marker = "."    # "1." at odd nesting levels
 even_level_marker = ")"   # "1)" at even nesting levels
+pad = "start"             # "start" or "end" for number alignment
+indent_width = 4          # Indentation for nested items
 
 [code_block]
 fence_char = "~"          # "~" or "`"

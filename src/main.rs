@@ -63,6 +63,8 @@ fn main() -> ExitCode {
         indent_width: config.list.indent_width,
         odd_level_marker: config.ordered_list.odd_level_marker,
         even_level_marker: config.ordered_list.even_level_marker,
+        ordered_list_pad: config.ordered_list.pad,
+        ordered_list_indent_width: config.ordered_list.indent_width,
         fence_char: config.code_block.fence_char,
         min_fence_length: config.code_block.min_fence_length,
         space_after_fence: config.code_block.space_after_fence,

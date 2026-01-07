@@ -104,9 +104,10 @@ fn test_ordered_list_numbering() {
     let options = Options::default();
     let result = format(input, &options).unwrap();
 
-    assert!(result.contains(" 1. First"));
-    assert!(result.contains(" 2. Second"));
-    assert!(result.contains(" 3. Third"));
+    // trailing_spaces=2, so " N.  " format
+    assert!(result.contains(" 1.  First"));
+    assert!(result.contains(" 2.  Second"));
+    assert!(result.contains(" 3.  Third"));
 }
 
 /// Test empty input produces empty output.

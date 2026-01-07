@@ -14,6 +14,7 @@
 pub mod config;
 mod serializer;
 
+pub use config::OrderedListPad;
 pub use serializer::Warning;
 
 use comrak::{Arena, Options as ComrakOptions, parse_document};
@@ -50,6 +51,12 @@ pub struct Options {
     /// Use `.` for `1.` or `)` for `1)`. Default: `)`.
     pub even_level_marker: char,
 
+    /// Padding style for ordered list numbers. Default: `Start`.
+    pub ordered_list_pad: OrderedListPad,
+
+    /// Indentation width for nested ordered list items. Default: 4.
+    pub ordered_list_indent_width: usize,
+
     /// Fence character for code blocks: `~` or `` ` ``. Default: `~`.
     pub fence_char: char,
 
@@ -72,6 +79,8 @@ impl Default for Options {
             indent_width: 4,
             odd_level_marker: '.',
             even_level_marker: ')',
+            ordered_list_pad: OrderedListPad::Start,
+            ordered_list_indent_width: 4,
             fence_char: '~',
             min_fence_length: 4,
             space_after_fence: true,

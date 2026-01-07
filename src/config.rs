@@ -100,6 +100,17 @@ impl Default for ListConfig {
     }
 }
 
+/// Padding style for ordered list numbers.
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum OrderedListPad {
+    /// Pad before the number (default): `  1.`, `  2.`, ..., ` 10.`
+    #[default]
+    Start,
+    /// Pad after the number: `1. `, `2. `, ..., `10.`
+    End,
+}
+
 /// Ordered list formatting options.
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(default)]
@@ -109,6 +120,12 @@ pub struct OrderedListConfig {
 
     /// Marker style at even nesting levels: `)` for `1)` (default: `)`).
     pub even_level_marker: char,
+
+    /// Padding style for aligning numbers of different widths (default: `start`).
+    pub pad: OrderedListPad,
+
+    /// Indentation width for nested ordered list items (default: 4).
+    pub indent_width: usize,
 }
 
 impl Default for OrderedListConfig {
@@ -116,6 +133,8 @@ impl Default for OrderedListConfig {
         Self {
             odd_level_marker: '.',
             even_level_marker: ')',
+            pad: OrderedListPad::Start,
+            indent_width: 4,
         }
     }
 }
@@ -298,6 +317,8 @@ mod tests {
         assert_eq!(config.list.indent_width, 4);
         assert_eq!(config.ordered_list.odd_level_marker, '.');
         assert_eq!(config.ordered_list.even_level_marker, ')');
+        assert_eq!(config.ordered_list.pad, OrderedListPad::Start);
+        assert_eq!(config.ordered_list.indent_width, 4);
         assert_eq!(config.code_block.fence_char, '~');
         assert_eq!(config.code_block.min_fence_length, 4);
         assert!(config.code_block.space_after_fence);
@@ -359,6 +380,31 @@ even_level_marker = "."
         .unwrap();
         assert_eq!(config.ordered_list.odd_level_marker, ')');
         assert_eq!(config.ordered_list.even_level_marker, '.');
+        assert_eq!(config.ordered_list.pad, OrderedListPad::Start); // default
+    }
+
+    #[test]
+    fn test_parse_ordered_list_pad_end() {
+        let config = Config::from_toml(
+            r#"
+[ordered_list]
+pad = "end"
+"#,
+        )
+        .unwrap();
+        assert_eq!(config.ordered_list.pad, OrderedListPad::End);
+    }
+
+    #[test]
+    fn test_parse_ordered_list_pad_start() {
+        let config = Config::from_toml(
+            r#"
+[ordered_list]
+pad = "start"
+"#,
+        )
+        .unwrap();
+        assert_eq!(config.ordered_list.pad, OrderedListPad::Start);
     }
 
     #[test]

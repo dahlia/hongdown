@@ -86,14 +86,16 @@ fn test_serialize_unordered_list_multiple_items() {
 
 #[test]
 fn test_serialize_ordered_list_single_item() {
+    // trailing_spaces=2, so " 1.  " (leading=1, number, marker, trailing=2)
     let result = parse_and_serialize("1. First item");
-    assert_eq!(result, " 1. First item\n");
+    assert_eq!(result, " 1.  First item\n");
 }
 
 #[test]
 fn test_serialize_ordered_list_multiple_items() {
+    // trailing_spaces=2, so " N.  " format
     let result = parse_and_serialize("1. First\n2. Second\n3. Third");
-    assert_eq!(result, " 1. First\n 2. Second\n 3. Third\n");
+    assert_eq!(result, " 1.  First\n 2.  Second\n 3.  Third\n");
 }
 
 #[test]
@@ -1608,8 +1610,9 @@ fn test_ordered_list_odd_level_marker() {
         odd_level_marker: ')',
         ..Options::default()
     };
+    // trailing_spaces=2, so " N)  " format
     let result = parse_and_serialize_with_options(" 1. First\n 2. Second", &options);
-    assert_eq!(result, " 1) First\n 2) Second\n");
+    assert_eq!(result, " 1)  First\n 2)  Second\n");
 }
 
 #[test]
@@ -1619,25 +1622,27 @@ fn test_ordered_list_even_level_marker() {
         ..Options::default()
     };
     // Nested ordered list (level 2)
+    // trailing_spaces=2, so "N.  " format for nested items
     let result = parse_and_serialize_with_options(
         " 1. First\n     1. Nested first\n     2. Nested second",
         &options,
     );
-    assert!(result.contains("1. Nested first"), "got: {}", result);
-    assert!(result.contains("2. Nested second"), "got: {}", result);
+    assert!(result.contains("1.  Nested first"), "got: {}", result);
+    assert!(result.contains("2.  Nested second"), "got: {}", result);
 }
 
 #[test]
 fn test_ordered_list_alternating_markers() {
     let options = Options::default();
     // Level 1 uses '.', level 2 uses ')'
+    // trailing_spaces=2, so " N.  " for level 1, "N)  " for level 2
     let result = parse_and_serialize_with_options(
         " 1. First\n     1. Nested first\n     2. Nested second",
         &options,
     );
-    assert!(result.contains(" 1. First"), "got: {}", result);
-    assert!(result.contains("1) Nested first"), "got: {}", result);
-    assert!(result.contains("2) Nested second"), "got: {}", result);
+    assert!(result.contains(" 1.  First"), "got: {}", result);
+    assert!(result.contains("1)  Nested first"), "got: {}", result);
+    assert!(result.contains("2)  Nested second"), "got: {}", result);
 }
 
 #[test]
@@ -1697,4 +1702,63 @@ fn test_code_block_space_after_fence_true() {
     };
     let result = parse_and_serialize_with_options("~~~~rust\nfn main() {}\n~~~~", &options);
     assert!(result.contains("~~~~ rust"), "got: {}", result);
+}
+
+#[test]
+fn test_ordered_list_pad_start_default() {
+    // Default: pad = Start, numbers are right-aligned
+    // For a list with 10+ items, single-digit numbers get leading space padding
+    let input =
+        "1. One\n2. Two\n3. Three\n4. Four\n5. Five\n6. Six\n7. Seven\n8. Eight\n9. Nine\n10. Ten";
+    let result = parse_and_serialize(input);
+    // Single-digit numbers should have extra leading space for alignment
+    assert!(result.contains("  1.  One"), "got:\n{}", result);
+    assert!(result.contains("  9.  Nine"), "got:\n{}", result);
+    // Double-digit numbers should not have extra leading space
+    assert!(result.contains(" 10.  Ten"), "got:\n{}", result);
+}
+
+#[test]
+fn test_ordered_list_pad_end() {
+    // pad = End, extra spaces go after the marker
+    use crate::config::OrderedListPad;
+    let options = Options {
+        ordered_list_pad: OrderedListPad::End,
+        ..Options::default()
+    };
+    let input =
+        "1. One\n2. Two\n3. Three\n4. Four\n5. Five\n6. Six\n7. Seven\n8. Eight\n9. Nine\n10. Ten";
+    let result = parse_and_serialize_with_options(input, &options);
+    // Single-digit numbers should have extra trailing space after marker
+    assert!(result.contains(" 1.   One"), "got:\n{}", result);
+    assert!(result.contains(" 9.   Nine"), "got:\n{}", result);
+    // Double-digit numbers should have normal trailing spaces
+    assert!(result.contains(" 10.  Ten"), "got:\n{}", result);
+}
+
+#[test]
+fn test_ordered_list_pad_small_list() {
+    // For lists with only single-digit items, no extra padding is needed
+    let input = "1. One\n2. Two\n3. Three";
+    let result = parse_and_serialize(input);
+    // No extra padding since max number is single-digit
+    assert!(result.contains(" 1.  One"), "got:\n{}", result);
+    assert!(result.contains(" 2.  Two"), "got:\n{}", result);
+    assert!(result.contains(" 3.  Three"), "got:\n{}", result);
+}
+
+#[test]
+fn test_ordered_list_pad_nested() {
+    // Nested ordered lists should each have their own padding based on their item count
+    let input = "1. Parent one\n2. Parent two\n     1. Child one\n     2. Child two\n     3. Child three\n     4. Child four\n     5. Child five\n     6. Child six\n     7. Child seven\n     8. Child eight\n     9. Child nine\n     10. Child ten";
+    let result = parse_and_serialize(input);
+    // Parent list has 2 items (single-digit), no extra padding
+    assert!(result.contains(" 1.  Parent one"), "got:\n{}", result);
+    assert!(result.contains(" 2.  Parent two"), "got:\n{}", result);
+    // Child list has 10 items, single-digit should have extra padding
+    // Nested items have indent_width (4) spaces before the " N) " prefix
+    // With pad=Start, extra space goes before the number
+    assert!(result.contains("  1)  Child one"), "got:\n{}", result);
+    assert!(result.contains("  9)  Child nine"), "got:\n{}", result);
+    assert!(result.contains(" 10)  Child ten"), "got:\n{}", result);
 }
