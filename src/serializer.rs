@@ -1618,6 +1618,59 @@ impl<'a> Serializer<'a> {
         self.output.push('\n');
     }
 
+    /// Serialize a code block with indentation prefix on each line.
+    /// Used for code blocks inside list items.
+    fn serialize_code_block_indented(&mut self, info: &str, literal: &str, indent: &str) {
+        // Determine the minimum fence length (at least 4)
+        let min_fence_length = 4;
+
+        // Find the longest sequence of tildes in the content
+        let max_tildes_in_content = literal
+            .lines()
+            .filter_map(|line| {
+                let trimmed = line.trim_start();
+                if trimmed.starts_with('~') {
+                    Some(trimmed.chars().take_while(|&c| c == '~').count())
+                } else {
+                    None
+                }
+            })
+            .max()
+            .unwrap_or(0);
+
+        // Fence length must be greater than any tilde sequence in content
+        let fence_length = std::cmp::max(min_fence_length, max_tildes_in_content + 1);
+        let fence = "~".repeat(fence_length);
+
+        // Output opening fence with optional language
+        self.output.push_str(&fence);
+        if !info.is_empty() {
+            self.output.push(' ');
+            self.output.push_str(info);
+        }
+        self.output.push('\n');
+
+        // Output content with indentation (skip indent for empty lines)
+        for line in literal.lines() {
+            if self.in_block_quote {
+                self.output.push_str("> ");
+            }
+            if !line.is_empty() {
+                self.output.push_str(indent);
+                self.output.push_str(line);
+            }
+            self.output.push('\n');
+        }
+
+        // Output closing fence with indentation
+        if self.in_block_quote {
+            self.output.push_str("> ");
+        }
+        self.output.push_str(indent);
+        self.output.push_str(&fence);
+        self.output.push('\n');
+    }
+
     fn serialize_list<'b>(&mut self, node: &'b AstNode<'b>, list_type: ListType, tight: bool) {
         let old_list_type = self.list_type;
         let old_list_tight = self.list_tight;
@@ -1644,30 +1697,41 @@ impl<'a> Serializer<'a> {
             self.output.push('\n');
         }
 
-        // Calculate indentation for nested lists (4 spaces per level, starting from level 2)
-        let indent = if self.list_depth > 1 {
-            "    ".repeat(self.list_depth - 1)
-        } else {
-            String::new()
-        };
-
         // Add block quote prefix if we're inside a block quote
         if self.in_block_quote {
             self.output.push_str("> ");
         }
 
-        self.output.push_str(&indent);
+        // Calculate indentation for nested lists
+        // Level 1: " -  " (1 leading space + hyphen + 2 trailing spaces)
+        // Level 2+: 4 spaces per additional level
+        // This gives: level 1 = " -  ", level 2 = "    -  " (4 spaces), etc.
+        if self.list_depth > 1 {
+            let indent = "    ".repeat(self.list_depth - 1);
+            self.output.push_str(&indent);
+        }
 
         match self.list_type {
             Some(ListType::Bullet) => {
-                // " -  " format: one leading space, hyphen, two trailing spaces
-                self.output.push_str(" -  ");
+                if self.list_depth > 1 {
+                    // Nested bullets: "-  " (no leading space, hyphen, two trailing spaces)
+                    self.output.push_str("-  ");
+                } else {
+                    // Top-level bullets: " -  " (one leading space)
+                    self.output.push_str(" -  ");
+                }
             }
             Some(ListType::Ordered) => {
-                // " N. " format for ordered lists
-                self.output.push(' ');
-                self.output.push_str(&self.list_item_index.to_string());
-                self.output.push_str(". ");
+                if self.list_depth > 1 {
+                    // Nested ordered: "N. "
+                    self.output.push_str(&self.list_item_index.to_string());
+                    self.output.push_str(". ");
+                } else {
+                    // Top-level ordered: " N. " format
+                    self.output.push(' ');
+                    self.output.push_str(&self.list_item_index.to_string());
+                    self.output.push_str(". ");
+                }
             }
             None => {}
         }
@@ -1710,6 +1774,19 @@ impl<'a> Serializer<'a> {
                         self.output.push_str(&base_indent);
                     }
                     self.serialize_node(child);
+                }
+                NodeValue::CodeBlock(code_block) => {
+                    // Code blocks in list items need blank line and indentation
+                    self.output.push_str("\n\n");
+                    if self.in_block_quote {
+                        self.output.push_str("> ");
+                    }
+                    self.output.push_str(&base_indent);
+                    self.serialize_code_block_indented(
+                        &code_block.info,
+                        &code_block.literal,
+                        &base_indent,
+                    );
                 }
                 _ => {
                     self.serialize_node(child);
@@ -2501,17 +2578,19 @@ Check [Python](https://python.org/) too.
     #[test]
     fn test_tight_nested_list() {
         // Nested list directly following text (tight) - no blank line
-        let input = " -  Item:\n     -  Nested 1\n     -  Nested 2\n";
+        // 4-space indent for nested lists
+        let input = " -  Item:\n    -  Nested 1\n    -  Nested 2\n";
         let result = parse_and_serialize(input);
-        assert_eq!(result, " -  Item:\n     -  Nested 1\n     -  Nested 2\n");
+        assert_eq!(result, " -  Item:\n    -  Nested 1\n    -  Nested 2\n");
     }
 
     #[test]
     fn test_loose_nested_list() {
         // Nested list after blank line (loose) - preserve blank line
-        let input = " -  Item.\n\n     -  Nested 1\n     -  Nested 2\n";
+        // 4-space indent for nested lists
+        let input = " -  Item.\n\n    -  Nested 1\n    -  Nested 2\n";
         let result = parse_and_serialize(input);
-        assert_eq!(result, " -  Item.\n\n     -  Nested 1\n     -  Nested 2\n");
+        assert_eq!(result, " -  Item.\n\n    -  Nested 1\n    -  Nested 2\n");
     }
 
     #[test]
@@ -2764,6 +2843,37 @@ Check [Python](https://python.org/) too.
             result, result2,
             "Reference link should be idempotent.\nFirst pass:\n{}\nSecond pass:\n{}",
             result, result2
+        );
+    }
+
+    #[test]
+    fn test_code_block_in_list_item() {
+        // Code block inside a list item should be properly indented
+        let input = " -  Example:\n\n    ~~~~\n    code here\n    ~~~~";
+        let result = parse_and_serialize_with_source(input);
+        // Code block should be on a new line with proper indentation
+        assert!(
+            result.contains("Example:\n\n    ~~~~"),
+            "Code block in list item should have blank line and indentation, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("    code here"),
+            "Code block content should be indented, got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_code_block_in_list_item_no_language() {
+        // Code block without language identifier should not add one
+        let input = " -  Item:\n\n    ~~~~\n    code\n    ~~~~";
+        let result = parse_and_serialize_with_source(input);
+        // Should use ~~~~ without language identifier
+        assert!(
+            result.contains("~~~~\n"),
+            "Code block should not have language identifier added, got:\n{}",
+            result
         );
     }
 }
