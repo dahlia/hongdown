@@ -11,11 +11,19 @@ mod state;
 mod table;
 mod wrap;
 
-pub use state::{ReferenceLink, Serializer};
+pub use state::{ReferenceLink, Serializer, Warning};
 
 use comrak::nodes::{AstNode, NodeValue};
 
 use crate::Options;
+
+/// Result of serialization including output and any warnings.
+pub struct SerializeResult {
+    /// The formatted Markdown output.
+    pub output: String,
+    /// Warnings generated during formatting.
+    pub warnings: Vec<Warning>,
+}
 
 /// Serializes a comrak AST node to a formatted Markdown string,
 /// with access to the original source for directive handling.
@@ -24,10 +32,23 @@ pub fn serialize_with_source<'a>(
     options: &Options,
     source: Option<&str>,
 ) -> String {
+    serialize_with_source_and_warnings(node, options, source).output
+}
+
+/// Serializes a comrak AST node to a formatted Markdown string,
+/// returning both the output and any warnings generated.
+pub fn serialize_with_source_and_warnings<'a>(
+    node: &'a AstNode<'a>,
+    options: &Options,
+    source: Option<&str>,
+) -> SerializeResult {
     let source_lines: Vec<&str> = source.map(|s| s.lines().collect()).unwrap_or_default();
     let mut serializer = Serializer::new(options, source_lines);
     serializer.serialize_node(node);
-    serializer.output
+    SerializeResult {
+        output: serializer.output,
+        warnings: serializer.warnings,
+    }
 }
 
 impl<'a> Serializer<'a> {

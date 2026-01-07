@@ -13,6 +13,8 @@
 
 mod serializer;
 
+pub use serializer::Warning;
+
 use comrak::{Arena, Options as ComrakOptions, parse_document};
 
 /// Formatting options for the Markdown formatter.
@@ -69,6 +71,54 @@ pub fn format(input: &str, options: &Options) -> Result<String, FormatError> {
     let output = serializer::serialize_with_source(root, options, Some(input));
 
     Ok(output)
+}
+
+/// Result of formatting with warnings.
+#[derive(Debug)]
+pub struct FormatResult {
+    /// The formatted Markdown output.
+    pub output: String,
+    /// Warnings generated during formatting.
+    pub warnings: Vec<Warning>,
+}
+
+/// Formats a Markdown document and returns both output and warnings.
+///
+/// This is similar to [`format`], but also returns any warnings generated
+/// during formatting (e.g., inconsistent table column counts).
+///
+/// # Arguments
+///
+/// * `input` - The Markdown source to format.
+/// * `options` - Formatting options.
+///
+/// # Returns
+///
+/// A [`FormatResult`] containing the formatted output and any warnings.
+pub fn format_with_warnings(input: &str, options: &Options) -> Result<FormatResult, FormatError> {
+    if input.is_empty() {
+        return Ok(FormatResult {
+            output: String::new(),
+            warnings: Vec::new(),
+        });
+    }
+
+    let arena = Arena::new();
+    let mut comrak_options = ComrakOptions::default();
+    comrak_options.extension.front_matter_delimiter = Some("---".to_string());
+    comrak_options.extension.table = true;
+    comrak_options.extension.description_lists = true;
+    comrak_options.extension.alerts = true;
+    comrak_options.extension.footnotes = true;
+    comrak_options.extension.tasklist = true;
+
+    let root = parse_document(&arena, input, &comrak_options);
+    let result = serializer::serialize_with_source_and_warnings(root, options, Some(input));
+
+    Ok(FormatResult {
+        output: result.output,
+        warnings: result.warnings,
+    })
 }
 
 /// Errors that can occur during formatting.

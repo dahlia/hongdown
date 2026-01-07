@@ -1445,3 +1445,16 @@ fn test_footnote_continuation_indent_matches_prefix() {
         result
     );
 }
+
+#[test]
+fn test_table_warns_on_unescaped_pipe_in_cell() {
+    use crate::format_with_warnings;
+
+    let input = r#"| Property | Type | Required |
+|----------|------|----------|
+| `strategy` | `"a" | "b"` | Yes |"#;
+    let result = format_with_warnings(input, &crate::Options::default()).unwrap();
+    assert_eq!(result.warnings.len(), 1);
+    assert!(result.warnings[0].message.contains("unescaped"));
+    assert_eq!(result.warnings[0].line, 3);
+}

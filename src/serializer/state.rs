@@ -61,6 +61,15 @@ pub struct FootnoteDefinition {
     pub reference_line: usize,
 }
 
+/// A warning generated during formatting.
+#[derive(Debug, Clone)]
+pub struct Warning {
+    /// Line number where the issue was detected (1-indexed)
+    pub line: usize,
+    /// Warning message
+    pub message: String,
+}
+
 /// The main serializer state for converting comrak AST to formatted Markdown.
 pub struct Serializer<'a> {
     pub output: String,
@@ -97,6 +106,8 @@ pub struct Serializer<'a> {
     pub skip_until_section: bool,
     /// Whether we're inside a description details block (for indentation)
     pub in_description_details: bool,
+    /// Warnings generated during formatting
+    pub warnings: Vec<Warning>,
 }
 
 impl<'a> Serializer<'a> {
@@ -119,7 +130,13 @@ impl<'a> Serializer<'a> {
             skip_next_block: false,
             skip_until_section: false,
             in_description_details: false,
+            warnings: Vec::new(),
         }
+    }
+
+    /// Add a warning.
+    pub fn add_warning(&mut self, line: usize, message: String) {
+        self.warnings.push(Warning { line, message });
     }
 
     /// Extract original source text for a node using its sourcepos.

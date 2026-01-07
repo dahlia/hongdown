@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::Parser;
-use hongdown::{Options, format};
+use hongdown::{Options, format_with_warnings};
 
 /// A Markdown formatter that enforces Hong Minhee's Markdown style conventions.
 #[derive(Parser, Debug)]
@@ -49,9 +49,13 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
 
-        match format(&input, &options) {
-            Ok(output) => {
-                print!("{}", output);
+        match format_with_warnings(&input, &options) {
+            Ok(result) => {
+                // Print warnings to stderr
+                for warning in &result.warnings {
+                    eprintln!("<stdin>:{}: warning: {}", warning.line, warning.message);
+                }
+                print!("{}", result.output);
                 ExitCode::SUCCESS
             }
             Err(e) => {
@@ -71,22 +75,32 @@ fn main() -> ExitCode {
                 }
             };
 
-            match format(&input, &options) {
-                Ok(output) => {
+            match format_with_warnings(&input, &options) {
+                Ok(result) => {
+                    // Print warnings to stderr
+                    for warning in &result.warnings {
+                        eprintln!(
+                            "{}:{}: warning: {}",
+                            file.display(),
+                            warning.line,
+                            warning.message
+                        );
+                    }
+
                     if args.check {
-                        if input != output {
+                        if input != result.output {
                             eprintln!("{}: not formatted", file.display());
                             all_formatted = false;
                         }
                     } else if args.write {
-                        if input != output
-                            && let Err(e) = fs::write(file, &output)
+                        if input != result.output
+                            && let Err(e) = fs::write(file, &result.output)
                         {
                             eprintln!("Error writing {}: {}", file.display(), e);
                             return ExitCode::FAILURE;
                         }
                     } else {
-                        print!("{}", output);
+                        print!("{}", result.output);
                     }
                 }
                 Err(e) => {
