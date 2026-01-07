@@ -74,6 +74,8 @@ struct Serializer<'a> {
     list_item_index: usize,
     /// Current list type
     list_type: Option<ListType>,
+    /// Whether the current list is tight (no blank lines between items)
+    list_tight: bool,
     /// Whether we're inside a block quote
     in_block_quote: bool,
     /// Reference links collected for the current section
@@ -97,6 +99,7 @@ impl<'a> Serializer<'a> {
             source_lines,
             list_item_index: 0,
             list_type: None,
+            list_tight: true,
             in_block_quote: false,
             pending_references: HashMap::new(),
             list_depth: 0,
@@ -339,7 +342,7 @@ impl<'a> Serializer<'a> {
                 self.serialize_heading(node, heading.level);
             }
             NodeValue::List(list) => {
-                self.serialize_list(node, list.list_type);
+                self.serialize_list(node, list.list_type, list.tight);
             }
             NodeValue::CodeBlock(code_block) => {
                 self.serialize_code_block(&code_block.info, &code_block.literal);
@@ -1484,11 +1487,13 @@ impl<'a> Serializer<'a> {
         self.output.push('\n');
     }
 
-    fn serialize_list<'b>(&mut self, node: &'b AstNode<'b>, list_type: ListType) {
+    fn serialize_list<'b>(&mut self, node: &'b AstNode<'b>, list_type: ListType, tight: bool) {
         let old_list_type = self.list_type;
+        let old_list_tight = self.list_tight;
         let old_index = self.list_item_index;
 
         self.list_type = Some(list_type);
+        self.list_tight = tight;
         self.list_item_index = 0;
         self.list_depth += 1;
 
@@ -1496,11 +1501,17 @@ impl<'a> Serializer<'a> {
 
         self.list_depth -= 1;
         self.list_type = old_list_type;
+        self.list_tight = old_list_tight;
         self.list_item_index = old_index;
     }
 
     fn serialize_list_item<'b>(&mut self, node: &'b AstNode<'b>) {
         self.list_item_index += 1;
+
+        // For loose lists, add a blank line before items (except the first)
+        if !self.list_tight && self.list_item_index > 1 {
+            self.output.push('\n');
+        }
 
         // Calculate indentation for nested lists (4 spaces per level, starting from level 2)
         let indent = if self.list_depth > 1 {
@@ -1642,6 +1653,41 @@ mod tests {
     fn test_serialize_ordered_list_multiple_items() {
         let result = parse_and_serialize("1. First\n2. Second\n3. Third");
         assert_eq!(result, " 1. First\n 2. Second\n 3. Third\n");
+    }
+
+    #[test]
+    fn test_serialize_tight_list() {
+        // Tight list: no blank lines between items
+        let input = " -  Item one\n -  Item two\n -  Item three";
+        let result = parse_and_serialize(input);
+        assert_eq!(result, " -  Item one\n -  Item two\n -  Item three\n");
+    }
+
+    #[test]
+    fn test_serialize_loose_list() {
+        // Loose list: blank lines between items should be preserved
+        let input = " -  Item one\n\n -  Item two\n\n -  Item three";
+        let result = parse_and_serialize(input);
+        assert_eq!(
+            result, " -  Item one\n\n -  Item two\n\n -  Item three\n",
+            "Loose list should have blank lines between items"
+        );
+    }
+
+    #[test]
+    fn test_serialize_loose_list_with_content() {
+        // Loose list with multi-line content
+        let input = " -  *Zero dependencies*: LogTape has zero dependencies.\n\n -  *Library support*: Designed for libraries.";
+        let result = parse_and_serialize(input);
+        assert!(
+            result.contains(" -  *Zero dependencies*"),
+            "Should contain first item"
+        );
+        assert!(
+            result.contains("\n\n -  *Library support*"),
+            "Should have blank line before second item, got:\n{}",
+            result
+        );
     }
 
     #[test]
