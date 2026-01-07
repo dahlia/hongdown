@@ -101,6 +101,11 @@ parent directories.  You can also specify a configuration file explicitly
 with the `--config` option.
 
 ~~~~ toml
+# File patterns (glob syntax)
+include = ["*.md", "docs/**/*.md"]  # Files to format
+exclude = ["node_modules/**"]        # Files to skip
+
+# Formatting options
 line_width = 80
 
 [heading]
@@ -121,6 +126,17 @@ even_level_marker = ")"   # "1)" at even nesting levels
 fence_char = "~"          # "~" or "`"
 min_fence_length = 4      # Minimum fence length
 space_after_fence = true  # Space between fence and language
+~~~~
+
+When `include` patterns are configured, you can run Hongdown without
+specifying files:
+
+~~~~ bash
+# Format all files matching include patterns
+hongdown --write
+
+# Check all files matching include patterns
+hongdown --check
 ~~~~
 
 CLI options override configuration file settings:

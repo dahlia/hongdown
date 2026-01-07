@@ -50,7 +50,7 @@ fn main() -> ExitCode {
     let args = Args::parse();
 
     // Load configuration
-    let config = load_config(&args);
+    let (config, config_dir) = load_config(&args);
 
     // Build options, with CLI args overriding config file
     let options = Options {
@@ -68,7 +68,25 @@ fn main() -> ExitCode {
         space_after_fence: config.code_block.space_after_fence,
     };
 
-    if args.stdin || args.files.is_empty() {
+    // Determine files to process
+    let files: Vec<PathBuf> = if args.files.is_empty() && !args.stdin {
+        // No files specified, try to use include patterns from config
+        if !config.include.is_empty() {
+            match config.collect_files(&config_dir) {
+                Ok(collected) => collected,
+                Err(e) => {
+                    eprintln!("Error collecting files: {}", e);
+                    return ExitCode::FAILURE;
+                }
+            }
+        } else {
+            Vec::new()
+        }
+    } else {
+        args.files.clone()
+    };
+
+    if args.stdin || files.is_empty() {
         // Read from stdin
         let mut input = String::new();
         if let Err(e) = io::stdin().read_to_string(&mut input) {
@@ -96,13 +114,13 @@ fn main() -> ExitCode {
         }
     } else if args.write || args.check {
         // Parallel processing for --write and --check modes
-        process_files_parallel(&args.files, &options, args.write, args.check)
+        process_files_parallel(&files, &options, args.write, args.check)
     } else if args.diff {
         // Diff mode for files
-        process_files_diff(&args.files, &options)
+        process_files_diff(&files, &options)
     } else {
         // Sequential processing for stdout mode (order matters)
-        process_files_sequential(&args.files, &options)
+        process_files_sequential(&files, &options)
     }
 }
 
@@ -262,30 +280,45 @@ fn print_diff(filename: &str, original: &str, formatted: &str) {
 
 /// Load configuration from file or use defaults.
 ///
+/// Returns the configuration and the base directory for glob patterns.
+///
 /// Priority:
 /// 1. Explicit `--config` path
 /// 2. Auto-discovered `.hongdown.toml` in current or parent directories
 /// 3. Default configuration
-fn load_config(args: &Args) -> Config {
+fn load_config(args: &Args) -> (Config, PathBuf) {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+
     // If explicit config path is provided, use it
     if let Some(config_path) = &args.config {
         match Config::from_file(config_path) {
-            Ok(config) => return config,
+            Ok(config) => {
+                let config_dir = config_path
+                    .parent()
+                    .map(|p| p.to_path_buf())
+                    .unwrap_or_else(|| cwd.clone());
+                return (config, config_dir);
+            }
             Err(e) => {
                 eprintln!("Warning: {}", e);
-                return Config::default();
+                return (Config::default(), cwd);
             }
         }
     }
 
     // Try to auto-discover config file from current directory
-    let start_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    match Config::discover(&start_dir) {
-        Ok(Some((_path, config))) => config,
-        Ok(None) => Config::default(),
+    match Config::discover(&cwd) {
+        Ok(Some((path, config))) => {
+            let config_dir = path
+                .parent()
+                .map(|p| p.to_path_buf())
+                .unwrap_or_else(|| cwd.clone());
+            (config, config_dir)
+        }
+        Ok(None) => (Config::default(), cwd),
         Err(e) => {
             eprintln!("Warning: {}", e);
-            Config::default()
+            (Config::default(), cwd)
         }
     }
 }

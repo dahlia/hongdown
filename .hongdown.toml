@@ -1,2 +1,3 @@
 # Hongdown configuration file
-# All options use default values; see README.md for available options.
+
+include = ["*.md"]

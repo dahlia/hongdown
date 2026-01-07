@@ -18,6 +18,13 @@ pub struct Config {
     /// Maximum line width for wrapping (default: 80).
     pub line_width: usize,
 
+    /// Glob patterns for files to include (default: empty, meaning all files
+    /// must be specified on command line).
+    pub include: Vec<String>,
+
+    /// Glob patterns for files to exclude (default: empty).
+    pub exclude: Vec<String>,
+
     /// Heading formatting options.
     pub heading: HeadingConfig,
 
@@ -35,6 +42,8 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             line_width: 80,
+            include: Vec::new(),
+            exclude: Vec::new(),
             heading: HeadingConfig::default(),
             list: ListConfig::default(),
             ordered_list: OrderedListConfig::default(),
@@ -167,6 +176,67 @@ impl Config {
         }
         Ok(None)
     }
+
+    /// Collect files matching the include patterns, excluding those matching
+    /// exclude patterns.
+    ///
+    /// The `base_dir` is used as the starting point for glob pattern matching.
+    /// Returns an empty list if no include patterns are configured.
+    pub fn collect_files(&self, base_dir: &Path) -> Result<Vec<PathBuf>, ConfigError> {
+        use glob::{MatchOptions, glob_with};
+
+        if self.include.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let options = MatchOptions {
+            case_sensitive: true,
+            require_literal_separator: false,
+            require_literal_leading_dot: false,
+        };
+
+        let mut files = Vec::new();
+
+        // Collect files matching include patterns
+        for pattern in &self.include {
+            let full_pattern = base_dir.join(pattern);
+            let pattern_str = full_pattern.to_string_lossy();
+            let matches = glob_with(&pattern_str, options)
+                .map_err(|e| ConfigError::Glob(pattern.clone(), e))?;
+
+            for entry in matches {
+                let path = entry.map_err(ConfigError::GlobIo)?;
+                if path.is_file() {
+                    files.push(path);
+                }
+            }
+        }
+
+        // Remove duplicates
+        files.sort();
+        files.dedup();
+
+        // Filter out excluded files
+        if !self.exclude.is_empty() {
+            let exclude_patterns: Vec<glob::Pattern> = self
+                .exclude
+                .iter()
+                .filter_map(|p| {
+                    let full_pattern = base_dir.join(p);
+                    glob::Pattern::new(&full_pattern.to_string_lossy()).ok()
+                })
+                .collect();
+
+            files.retain(|path| {
+                let path_str = path.to_string_lossy();
+                !exclude_patterns
+                    .iter()
+                    .any(|pattern| pattern.matches(&path_str))
+            });
+        }
+
+        Ok(files)
+    }
 }
 
 /// Errors that can occur when loading configuration.
@@ -176,6 +246,10 @@ pub enum ConfigError {
     Io(PathBuf, std::io::Error),
     /// Error parsing the TOML configuration.
     Parse(PathBuf, toml::de::Error),
+    /// Error parsing a glob pattern.
+    Glob(String, glob::PatternError),
+    /// I/O error during glob iteration.
+    GlobIo(glob::GlobError),
 }
 
 impl std::fmt::Display for ConfigError {
@@ -187,6 +261,12 @@ impl std::fmt::Display for ConfigError {
             ConfigError::Parse(path, err) => {
                 write!(f, "failed to parse {}: {}", path.display(), err)
             }
+            ConfigError::Glob(pattern, err) => {
+                write!(f, "invalid glob pattern '{}': {}", pattern, err)
+            }
+            ConfigError::GlobIo(err) => {
+                write!(f, "error reading file: {}", err)
+            }
         }
     }
 }
@@ -196,6 +276,8 @@ impl std::error::Error for ConfigError {
         match self {
             ConfigError::Io(_, err) => Some(err),
             ConfigError::Parse(_, err) => Some(err),
+            ConfigError::Glob(_, err) => Some(err),
+            ConfigError::GlobIo(err) => Some(err),
         }
     }
 }
@@ -371,6 +453,106 @@ space_after_fence = true
         let (path, config) = result.unwrap();
         assert_eq!(path, config_path);
         assert_eq!(config.line_width, 90);
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_default_include_exclude() {
+        let config = Config::default();
+        assert!(config.include.is_empty());
+        assert!(config.exclude.is_empty());
+    }
+
+    #[test]
+    fn test_parse_include_patterns() {
+        let config = Config::from_toml(
+            r#"
+include = ["*.md", "docs/**/*.md"]
+"#,
+        )
+        .unwrap();
+        assert_eq!(config.include, vec!["*.md", "docs/**/*.md"]);
+    }
+
+    #[test]
+    fn test_parse_exclude_patterns() {
+        let config = Config::from_toml(
+            r#"
+exclude = ["node_modules/**", "target/**"]
+"#,
+        )
+        .unwrap();
+        assert_eq!(config.exclude, vec!["node_modules/**", "target/**"]);
+    }
+
+    #[test]
+    fn test_parse_include_and_exclude() {
+        let config = Config::from_toml(
+            r#"
+include = ["**/*.md"]
+exclude = ["vendor/**"]
+"#,
+        )
+        .unwrap();
+        assert_eq!(config.include, vec!["**/*.md"]);
+        assert_eq!(config.exclude, vec!["vendor/**"]);
+    }
+
+    #[test]
+    fn test_collect_files_with_include() {
+        let temp_dir = std::env::temp_dir().join("hongdown_test_collect");
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        std::fs::write(temp_dir.join("README.md"), "# Test").unwrap();
+        std::fs::write(temp_dir.join("CHANGELOG.md"), "# Changes").unwrap();
+        std::fs::write(temp_dir.join("main.rs"), "fn main() {}").unwrap();
+
+        let config = Config::from_toml(r#"include = ["*.md"]"#).unwrap();
+        let files = config.collect_files(&temp_dir).unwrap();
+
+        assert_eq!(files.len(), 2);
+        assert!(files.iter().any(|p| p.ends_with("README.md")));
+        assert!(files.iter().any(|p| p.ends_with("CHANGELOG.md")));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_collect_files_with_exclude() {
+        let temp_dir = std::env::temp_dir().join("hongdown_test_exclude");
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        std::fs::create_dir_all(temp_dir.join("vendor")).unwrap();
+        std::fs::write(temp_dir.join("README.md"), "# Test").unwrap();
+        std::fs::write(temp_dir.join("vendor").join("lib.md"), "# Lib").unwrap();
+
+        let config = Config::from_toml(
+            r#"
+include = ["**/*.md"]
+exclude = ["vendor/**"]
+"#,
+        )
+        .unwrap();
+        let files = config.collect_files(&temp_dir).unwrap();
+
+        assert_eq!(files.len(), 1);
+        assert!(files[0].ends_with("README.md"));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_collect_files_empty_include() {
+        let temp_dir = std::env::temp_dir().join("hongdown_test_empty");
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        std::fs::write(temp_dir.join("README.md"), "# Test").unwrap();
+
+        let config = Config::default();
+        let files = config.collect_files(&temp_dir).unwrap();
+
+        assert!(files.is_empty());
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
