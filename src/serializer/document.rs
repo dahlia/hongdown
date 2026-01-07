@@ -249,7 +249,7 @@ impl<'a> Serializer<'a> {
         // Collect heading text first
         let heading_text = self.collect_text(node);
 
-        if level == 1 {
+        if level == 1 && self.options.setext_h1 {
             // Setext-style with '='
             self.output.push_str(&heading_text);
             self.output.push('\n');
@@ -264,7 +264,7 @@ impl<'a> Serializer<'a> {
                 .push_str(&"-".repeat(heading_text.chars().count()));
             self.output.push('\n');
         } else {
-            // ATX-style for level 3+
+            // ATX-style for level 3+ or when setext is disabled
             self.output.push_str(&"#".repeat(level as usize));
             self.output.push(' ');
             self.output.push_str(&heading_text);

@@ -48,6 +48,7 @@ fn main() -> ExitCode {
     // Build options, with CLI args overriding config file
     let options = Options {
         line_width: args.line_width.unwrap_or(config.line_width),
+        setext_h1: config.heading.setext_h1,
     };
 
     if args.stdin || args.files.is_empty() {

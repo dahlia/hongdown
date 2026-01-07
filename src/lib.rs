@@ -23,11 +23,17 @@ use comrak::{Arena, Options as ComrakOptions, parse_document};
 pub struct Options {
     /// Line width for wrapping. Default: 80.
     pub line_width: usize,
+
+    /// Use setext-style (underlined) for h1 headings. Default: true.
+    pub setext_h1: bool,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Self { line_width: 80 }
+        Self {
+            line_width: 80,
+            setext_h1: true,
+        }
     }
 }
 

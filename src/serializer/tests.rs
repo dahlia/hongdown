@@ -20,6 +20,13 @@ fn parse_and_serialize(input: &str) -> String {
     serialize_with_source(root, &format_options, None)
 }
 
+fn parse_and_serialize_with_options(input: &str, format_options: &Options) -> String {
+    let arena = Arena::new();
+    let options = comrak_options();
+    let root = parse_document(&arena, input, &options);
+    serialize_with_source(root, format_options, None)
+}
+
 fn parse_and_serialize_with_source(input: &str) -> String {
     let arena = Arena::new();
     let options = comrak_options();
@@ -326,7 +333,10 @@ fn parse_and_serialize_with_width(input: &str, line_width: usize) -> String {
     let arena = Arena::new();
     let options = ComrakOptions::default();
     let root = parse_document(&arena, input, &options);
-    let format_options = Options { line_width };
+    let format_options = Options {
+        line_width,
+        ..Options::default()
+    };
     serialize_with_source(root, &format_options, None)
 }
 
@@ -635,7 +645,10 @@ fn parse_and_serialize_with_alerts_and_width(input: &str, line_width: usize) -> 
     let mut options = ComrakOptions::default();
     options.extension.alerts = true;
     let root = parse_document(&arena, input, &options);
-    let format_options = Options { line_width };
+    let format_options = Options {
+        line_width,
+        ..Options::default()
+    };
     serialize_with_source(root, &format_options, None)
 }
 
@@ -1457,4 +1470,24 @@ fn test_table_warns_on_unescaped_pipe_in_cell() {
     assert_eq!(result.warnings.len(), 1);
     assert!(result.warnings[0].message.contains("unescaped"));
     assert_eq!(result.warnings[0].line, 3);
+}
+
+#[test]
+fn test_heading_setext_h1_disabled() {
+    let options = Options {
+        setext_h1: false,
+        ..Options::default()
+    };
+    let result = parse_and_serialize_with_options("# Document Title", &options);
+    assert_eq!(result, "# Document Title\n");
+}
+
+#[test]
+fn test_heading_setext_h1_enabled() {
+    let options = Options {
+        setext_h1: true,
+        ..Options::default()
+    };
+    let result = parse_and_serialize_with_options("# Document Title", &options);
+    assert_eq!(result, "Document Title\n==============\n");
 }

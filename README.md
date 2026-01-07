@@ -204,7 +204,24 @@ TODO
 
 ### Phase 3: Polish
 
- -  [ ] Configuration file support
+ -  [x] Configuration file support
+     -  [x] Config file parsing and discovery (`.hongdown.toml`)
+     -  [x] `line_width` option
+     -  [ ] `[heading]` section
+         -  [x] `setext_h1` option
+         -  [ ] `setext_h2` option
+     -  [ ] `[list]` section
+         -  [ ] `unordered_marker` option
+         -  [ ] `leading_spaces` option
+         -  [ ] `trailing_spaces` option
+         -  [ ] `indent_width` option
+     -  [ ] `[ordered_list]` section
+         -  [ ] `odd_level_marker` option
+         -  [ ] `even_level_marker` option
+     -  [ ] `[code_block]` section
+         -  [ ] `fence_char` option
+         -  [ ] `min_fence_length` option
+         -  [ ] `space_after_fence` option
  -  [x] Check mode for CI integration
  -  [x] Disable directives
  -  [x] Edge case handling

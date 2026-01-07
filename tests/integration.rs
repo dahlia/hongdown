@@ -70,7 +70,10 @@ Visit [Rust](https://www.rust-lang.org/) for more info.
 #[test]
 fn test_inline_code_not_broken() {
     let input = "This is a paragraph with `some_very_long_function_name_that_should_not_be_broken()` inline code.";
-    let options = Options { line_width: 40 };
+    let options = Options {
+        line_width: 40,
+        ..Options::default()
+    };
     let result = format(input, &options).unwrap();
 
     // The inline code should appear intact on some line
