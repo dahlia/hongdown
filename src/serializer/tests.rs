@@ -913,6 +913,18 @@ fn test_directive_disable_file() {
 }
 
 #[test]
+fn test_directive_disable_file_after_front_matter() {
+    // hongdown-disable-file after front matter should preserve everything after it
+    let input = "---\ntitle: Test\n---\n\n<!-- hongdown-disable-file -->\n\n# Title\n\nSome   badly   formatted   text.";
+    let result = parse_and_serialize_with_source(input);
+    // The file content should be preserved exactly as-is
+    assert_eq!(
+        result, input,
+        "disable-file after front matter should preserve file content exactly"
+    );
+}
+
+#[test]
 fn test_directive_disable_next_section() {
     // hongdown-disable-next-section should preserve content until the next heading
     let input = "First section\n-------------\n\nNormal content.\n\n<!-- hongdown-disable-next-section -->\n\nSecond section\n--------------\n\n[![Badge][img]][url]\n\n[img]: https://example.com/img.svg\n[url]: https://example.com\n\nThird section\n-------------\n\nThis should be formatted normally.";

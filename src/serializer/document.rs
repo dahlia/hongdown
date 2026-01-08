@@ -35,17 +35,16 @@ impl<'a> Serializer<'a> {
                 match directive {
                     Directive::DisableFile => {
                         // Output the directive comment, then output remaining content as-is
-                        self.output.push_str(&html_block.literal);
-                        for remaining_child in children.iter().skip(i + 1) {
+                        self.output.push_str(html_block.literal.trim_end());
+                        // Get the line after the directive block ends
+                        let directive_end_line = child.data.borrow().sourcepos.end.line;
+                        // Extract everything from the next line to the end of file
+                        if let Some(remaining) =
+                            self.extract_source_from_line(directive_end_line + 1)
+                        {
                             self.output.push('\n');
-                            if let Some(source) = self.extract_source(remaining_child) {
-                                self.output.push_str(&source);
-                            } else {
-                                self.serialize_node(remaining_child);
-                            }
+                            self.output.push_str(&remaining);
                         }
-                        self.flush_references();
-                        self.flush_footnotes();
                         return;
                     }
                     Directive::DisableNextLine => {

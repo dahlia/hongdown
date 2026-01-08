@@ -196,6 +196,26 @@ impl<'a> Serializer<'a> {
         Some(result)
     }
 
+    /// Extract original source text from a given line to the end of the file.
+    /// Line numbers are 1-indexed.
+    pub fn extract_source_from_line(&self, start_line: usize) -> Option<String> {
+        if self.source_lines.is_empty() || start_line == 0 {
+            return None;
+        }
+        let start_idx = start_line - 1;
+        if start_idx >= self.source_lines.len() {
+            return None;
+        }
+        let mut result = String::new();
+        for (i, line) in self.source_lines.iter().enumerate().skip(start_idx) {
+            if i > start_idx {
+                result.push('\n');
+            }
+            result.push_str(line);
+        }
+        Some(result)
+    }
+
     /// Check if formatting should be skipped for this node.
     pub fn should_skip_formatting(&self) -> bool {
         self.formatting_disabled || self.skip_next_block || self.skip_until_section
