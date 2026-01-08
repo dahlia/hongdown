@@ -1894,3 +1894,47 @@ fn test_undefined_full_reference_warning() {
     assert_eq!(result.warnings.len(), 1);
     assert!(result.warnings[0].message.contains("undefined-label"));
 }
+
+#[test]
+fn test_abbreviation_definition_no_warning() {
+    // PHP Markdown Extra abbreviation definitions (*[ABBR]: Full Text)
+    // should not cause warnings when [ABBR] is used in the document
+    let input = "The HTML specification is maintained by the W3C.\n\n*[HTML]: Hyper Text Markup Language\n*[W3C]: World Wide Web Consortium";
+    let result = parse_and_serialize_with_warnings(input);
+    assert_eq!(
+        result.warnings.len(),
+        0,
+        "Expected no warnings for abbreviations but got: {:?}",
+        result.warnings
+    );
+}
+
+#[test]
+fn test_abbreviation_with_undefined_reference() {
+    // When document has abbreviation definitions, but also undefined references,
+    // only the undefined references should trigger warnings
+    let input = "See the HTML spec and [undefined ref].\n\n*[HTML]: Hyper Text Markup Language";
+    let result = parse_and_serialize_with_warnings(input);
+    assert_eq!(
+        result.warnings.len(),
+        1,
+        "Expected 1 warning for [undefined ref] but got: {:?}",
+        result.warnings
+    );
+    assert!(result.warnings[0].message.contains("undefined ref"));
+}
+
+#[test]
+fn test_reference_after_abbreviation_no_warning() {
+    // Reference definitions that follow abbreviation definitions (without a blank line)
+    // may not be parsed by comrak as reference definitions. We should still detect
+    // these from the source and not warn about them.
+    let input = "See [RabbitMQ] for more.\n\n*[AMQP]: Advanced Message Queuing Protocol\n[RabbitMQ]: https://www.rabbitmq.com/";
+    let result = parse_and_serialize_with_warnings(input);
+    assert_eq!(
+        result.warnings.len(),
+        0,
+        "Expected no warnings but got: {:?}",
+        result.warnings
+    );
+}

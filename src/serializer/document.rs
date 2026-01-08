@@ -373,11 +373,62 @@ impl<'a> Serializer<'a> {
             return;
         }
 
+        // Collect PHP Markdown Extra abbreviation definitions from source
+        let abbreviations = Self::collect_abbreviations(&self.source_lines);
+
+        // Collect reference definitions from source that comrak may not have parsed
+        // (e.g., when they follow abbreviation definitions without a blank line)
+        let source_ref_defs = Self::collect_source_reference_definitions(&self.source_lines);
+
         // Collect warnings first to avoid borrow issues
-        let warnings = Self::find_undefined_references_in_ast(node, &self.source_lines);
+        let warnings = Self::find_undefined_references_in_ast(
+            node,
+            &self.source_lines,
+            &abbreviations,
+            &source_ref_defs,
+        );
         for (line, msg) in warnings {
             self.add_warning(line, msg);
         }
+    }
+
+    /// Collect PHP Markdown Extra abbreviation definitions from source.
+    /// Returns a set of abbreviation names (e.g., "HTML" from "*[HTML]: Hyper Text Markup Language").
+    fn collect_abbreviations(source_lines: &[&str]) -> std::collections::HashSet<String> {
+        let mut abbreviations = std::collections::HashSet::new();
+        let abbr_pattern = Regex::new(r"^\*\[([^\]]+)\]:").unwrap();
+
+        for line in source_lines {
+            if let Some(caps) = abbr_pattern.captures(line)
+                && let Some(abbr) = caps.get(1)
+            {
+                abbreviations.insert(abbr.as_str().to_string());
+            }
+        }
+
+        abbreviations
+    }
+
+    /// Collect reference definitions from source that comrak may not have parsed.
+    /// This happens when a reference definition follows an abbreviation definition
+    /// without a blank line in between.
+    /// Returns a set of (label, line_number) tuples.
+    fn collect_source_reference_definitions(
+        source_lines: &[&str],
+    ) -> std::collections::HashSet<String> {
+        let mut definitions = std::collections::HashSet::new();
+        // Pattern: [label]: URL at start of line (with optional leading whitespace)
+        let ref_def_pattern = Regex::new(r"^\s*\[([^\]]+)\]:\s*\S").unwrap();
+
+        for line in source_lines {
+            if let Some(caps) = ref_def_pattern.captures(line)
+                && let Some(label) = caps.get(1)
+            {
+                definitions.insert(label.as_str().to_string());
+            }
+        }
+
+        definitions
     }
 
     /// Find undefined references by walking the AST.
@@ -385,6 +436,8 @@ impl<'a> Serializer<'a> {
     fn find_undefined_references_in_ast<'b>(
         node: &'b AstNode<'b>,
         source_lines: &[&str],
+        abbreviations: &std::collections::HashSet<String>,
+        source_ref_defs: &std::collections::HashSet<String>,
     ) -> Vec<(usize, String)> {
         let mut warnings = Vec::new();
 
@@ -393,7 +446,14 @@ impl<'a> Serializer<'a> {
         // The pattern [^\[\]] ensures the label doesn't start with [ or ]
         let ref_pattern = Regex::new(r"\[([^\[\]][^\]]*)\](?:\[([^\]]*)\])?").unwrap();
 
-        Self::walk_ast_for_undefined_refs(node, source_lines, &ref_pattern, &mut warnings);
+        Self::walk_ast_for_undefined_refs(
+            node,
+            source_lines,
+            &ref_pattern,
+            abbreviations,
+            source_ref_defs,
+            &mut warnings,
+        );
 
         warnings
     }
@@ -403,6 +463,8 @@ impl<'a> Serializer<'a> {
         node: &'b AstNode<'b>,
         source_lines: &[&str],
         ref_pattern: &Regex,
+        abbreviations: &std::collections::HashSet<String>,
+        source_ref_defs: &std::collections::HashSet<String>,
         warnings: &mut Vec<(usize, String)>,
     ) {
         let data = node.data.borrow();
@@ -443,6 +505,17 @@ impl<'a> Serializer<'a> {
                         continue;
                     }
 
+                    // Skip PHP Markdown Extra abbreviations
+                    if abbreviations.contains(label) {
+                        continue;
+                    }
+
+                    // Skip reference definitions that exist in source but comrak didn't parse
+                    // (e.g., when they follow abbreviation definitions without a blank line)
+                    if source_ref_defs.contains(label) {
+                        continue;
+                    }
+
                     // Check original source to see if this was escaped
                     if Self::is_escaped_in_source(source_lines, line_num, full_match.as_str()) {
                         continue;
@@ -466,7 +539,14 @@ impl<'a> Serializer<'a> {
 
         // Recurse into children
         for child in node.children() {
-            Self::walk_ast_for_undefined_refs(child, source_lines, ref_pattern, warnings);
+            Self::walk_ast_for_undefined_refs(
+                child,
+                source_lines,
+                ref_pattern,
+                abbreviations,
+                source_ref_defs,
+                warnings,
+            );
         }
     }
 
