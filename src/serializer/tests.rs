@@ -675,6 +675,38 @@ fn test_serialize_long_list_item_in_alert() {
 }
 
 #[test]
+fn test_blockquote_inside_list_item() {
+    // Blockquotes inside list items should have proper indentation
+    let input = " 1.  Item with blockquote:\n\n     > This is quoted text\n     > inside a list item.\n\n 2.  Next item.";
+    let result = parse_and_serialize_with_alerts(input);
+    assert!(result.contains(" 1.  Item with blockquote:"));
+    assert!(result.contains("     > This is quoted text"));
+    assert!(result.contains("     > inside a list item."));
+    assert!(result.contains(" 2.  Next item."));
+}
+
+#[test]
+fn test_alert_inside_list_item() {
+    // Alerts inside list items should have proper indentation
+    let input = " 1.  Item with alert:\n\n     > [!IMPORTANT]\n     > Important message.\n\n 2.  Next item.";
+    let result = parse_and_serialize_with_alerts(input);
+    assert!(result.contains(" 1.  Item with alert:"));
+    assert!(result.contains("     > [!IMPORTANT]"));
+    assert!(result.contains("     > Important message."));
+    assert!(result.contains(" 2.  Next item."));
+}
+
+#[test]
+fn test_alert_inside_unordered_list_item() {
+    // Alerts inside unordered list items
+    let input = " -  Item with alert:\n\n     > [!NOTE]\n     > A note inside a list.";
+    let result = parse_and_serialize_with_alerts(input);
+    assert!(result.contains(" -  Item with alert:"));
+    assert!(result.contains("    > [!NOTE]"));
+    assert!(result.contains("    > A note inside a list."));
+}
+
+#[test]
 fn test_serialize_external_link_as_reference() {
     // External URLs should be converted to reference links
     let input = "Visit [Rust](https://www.rust-lang.org/) for more info.";

@@ -112,6 +112,15 @@ pub struct Serializer<'a> {
     pub ordered_list_max_items: usize,
     /// Whether the original source ends with a newline
     pub source_ends_with_newline: bool,
+    /// Current indentation prefix for list item content (e.g., "     " for ` 1.  `)
+    /// Used by blockquotes and other block elements inside list items.
+    pub list_item_indent: String,
+    /// Indentation prefix for content inside a blockquote that's nested inside a list.
+    /// This is the outer list's indent that should appear before each `>` in the blockquote.
+    pub blockquote_outer_indent: String,
+    /// The list depth when entering the current blockquote.
+    /// Used to determine if a list exists inside vs outside the blockquote.
+    pub blockquote_entry_list_depth: usize,
 }
 
 impl<'a> Serializer<'a> {
@@ -141,6 +150,9 @@ impl<'a> Serializer<'a> {
             warnings: Vec::new(),
             ordered_list_max_items: 0,
             source_ends_with_newline,
+            list_item_indent: String::new(),
+            blockquote_outer_indent: String::new(),
+            blockquote_entry_list_depth: 0,
         }
     }
 

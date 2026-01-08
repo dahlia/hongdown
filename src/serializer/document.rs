@@ -287,21 +287,30 @@ impl<'a> Serializer<'a> {
         let mut inline_content = String::new();
         self.collect_inline_content(node, &mut inline_content);
 
-        let prefix = if self.in_block_quote { "> " } else { "" };
-
         if self.list_type.is_some() {
             // Inside a list item, wrap with proper continuation indent
             // First line has no prefix (marker already output)
-            // Continuation lines need 4-space indent per nesting level
-            // (to align with list item content at each level)
-            let base_indent = if self.in_description_details {
+            // Continuation lines need appropriate indent
+            //
+            // There are two cases:
+            // 1. List inside blockquote: list_depth > blockquote_entry_list_depth
+            //    - Use base_indent for the inner list's continuation
+            // 2. Blockquote inside list: list_depth == blockquote_entry_list_depth
+            //    - Don't add base_indent, just use the outer prefix
+            let inner_list_depth = self
+                .list_depth
+                .saturating_sub(self.blockquote_entry_list_depth);
+            let base_indent = if self.in_description_details && inner_list_depth > 0 {
                 // Inside description details, add extra 5-space indent
-                format!("     {}", "    ".repeat(self.list_depth))
+                format!("     {}", "    ".repeat(inner_list_depth))
             } else {
-                "    ".repeat(self.list_depth)
+                "    ".repeat(inner_list_depth)
             };
             let continuation = if self.in_block_quote {
-                format!("> {}", base_indent)
+                // Inside a blockquote, continuation lines need > prefix + indent
+                // Use blockquote_outer_indent (the outer list's indent, if any)
+                // rather than list_item_indent (which is for the list inside the blockquote)
+                format!("{}> {}", self.blockquote_outer_indent, base_indent)
             } else {
                 base_indent
             };
@@ -313,8 +322,13 @@ impl<'a> Serializer<'a> {
             );
             self.output.push_str(&wrapped);
         } else {
-            // Wrap the paragraph at line_width
-            let wrapped = wrap::wrap_text(&inline_content, prefix, self.options.line_width);
+            // Not in a list - wrap the paragraph at line_width
+            let prefix = if self.in_block_quote {
+                format!("{}> ", self.blockquote_outer_indent)
+            } else {
+                String::new()
+            };
+            let wrapped = wrap::wrap_text(&inline_content, &prefix, self.options.line_width);
             self.output.push_str(&wrapped);
             self.output.push('\n');
         }

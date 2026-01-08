@@ -221,6 +221,10 @@ impl<'a> Serializer<'a> {
             " ".repeat(marker_width)
         };
 
+        // Store the base indent for use by nested block elements (blockquotes, alerts, etc.)
+        let old_list_item_indent =
+            std::mem::replace(&mut self.list_item_indent, base_indent.clone());
+
         for (i, child) in children.iter().enumerate() {
             let is_first = i == 0;
             match &child.data.borrow().value {
@@ -247,8 +251,19 @@ impl<'a> Serializer<'a> {
                 NodeValue::Paragraph => {
                     // For paragraphs after the first, add blank line with proper indentation
                     if !is_first {
-                        // First \n ends the previous paragraph, second \n creates blank line
-                        self.output.push_str("\n\n");
+                        // Check if previous child was a code block (which already ends with \n)
+                        let prev_was_code_block = i > 0
+                            && matches!(
+                                &children[i - 1].data.borrow().value,
+                                NodeValue::CodeBlock(_)
+                            );
+                        if prev_was_code_block {
+                            // Code block already ends with \n, so just add one more \n
+                            self.output.push('\n');
+                        } else {
+                            // First \n ends the previous paragraph, second \n creates blank line
+                            self.output.push_str("\n\n");
+                        }
                         if self.in_block_quote {
                             self.output.push_str("> ");
                         }
@@ -269,19 +284,38 @@ impl<'a> Serializer<'a> {
                         &base_indent,
                     );
                 }
+                NodeValue::BlockQuote | NodeValue::Alert(_) => {
+                    // Block quotes and alerts in list items need blank line
+                    // The indentation is handled by the blockquote/alert serialization itself
+                    if !is_first {
+                        self.output.push_str("\n\n");
+                    } else {
+                        self.output.push('\n');
+                    }
+                    if self.in_block_quote {
+                        self.output.push_str("> ");
+                    }
+                    self.serialize_node(child);
+                }
                 _ => {
                     self.serialize_node(child);
                 }
             }
         }
 
+        // Restore the old list item indent
+        self.list_item_indent = old_list_item_indent;
+
         // Only add newline if the last child doesn't already end with one
-        // (nested lists and code blocks add their own newlines)
+        // (nested lists, code blocks, and blockquotes add their own newlines)
         let last_child = node.children().last();
         let last_child_ends_with_newline = last_child.is_some_and(|child| {
             matches!(
                 &child.data.borrow().value,
-                NodeValue::List(_) | NodeValue::CodeBlock(_)
+                NodeValue::List(_)
+                    | NodeValue::CodeBlock(_)
+                    | NodeValue::BlockQuote
+                    | NodeValue::Alert(_)
             )
         });
         if !last_child_ends_with_newline {

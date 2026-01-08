@@ -21,26 +21,21 @@ Before starting any release:
 
  1.  Verify the remote repository name:
 
-~~~~~ text
-~~~~ bash
-git remote -v
-~~~~
+     ~~~~ bash
+     git remote -v
+     ~~~~
 
+     Use the correct remote name (usually `origin` or `dahlia`) in all push
+    commands.
 
-Use the correct remote name (usually `origin` or `dahlia`) in all push
-commands.
-~~~~~
+ 2.  Ensure you're on the correct branch and it's up to date.
 
- 1.  Ensure you're on the correct branch and it's up to date.
+ 3.  Run tests and quality checks to ensure everything passes:
 
- 2.  Run tests and quality checks to ensure everything passes:
-
-~~~~~ text
-~~~~ bash
-cargo test && cargo fmt --check && cargo clippy -- -D warnings
-cargo run -- --check *.md
-~~~~
-~~~~~
+     ~~~~ bash
+     cargo test && cargo fmt --check && cargo clippy -- -D warnings
+     cargo run -- --check *.md
+     ~~~~
 
 
 Patch releases
@@ -53,79 +48,65 @@ They are created from `X.Y-maintenance` branches.
 
  1.  Check out the maintenance branch:
 
-~~~~~ text
-~~~~ bash
-git checkout 1.2-maintenance
-git pull
-~~~~
-~~~~~
+     ~~~~ bash
+     git checkout 1.2-maintenance
+     git pull
+     ~~~~
 
- 1.  Update *CHANGES.md*: Find the section for the version being released and
+ 2.  Update *CHANGES.md*: Find the section for the version being released and
     change "To be released." to "Released on {Month} {Day}, {Year}." using
     the current date in English.  For example:
 
-~~~~~ text
-~~~~ markdown
-Version 1.2.3
--------------
+     ~~~~ markdown
+     Version 1.2.3
+     -------------
 
-Released on January 5, 2026.
-~~~~
-~~~~~
+     Released on January 5, 2026.
+     ~~~~
 
- 1.  Commit the changes:
+ 3.  Commit the changes:
 
-~~~~~ text
-~~~~ bash
-git add CHANGES.md
-git commit -m "Release 1.2.3"
-~~~~
-~~~~~
+     ~~~~ bash
+     git add CHANGES.md
+     git commit -m "Release 1.2.3"
+     ~~~~
 
- 1.  Create the tag (without `v` prefix).  Always use `-m` to provide a tag
+ 4.  Create the tag (without `v` prefix).  Always use `-m` to provide a tag
     message to avoid opening an editor for GPG-signed tags:
 
-~~~~~ text
-~~~~ bash
-git tag -m "Hongdown 1.2.3" 1.2.3
-~~~~
-~~~~~
+     ~~~~ bash
+     git tag -m "Hongdown 1.2.3" 1.2.3
+     ~~~~
 
 ### Step 2: Prepare next version
 
  1.  Add a new section at the top of *CHANGES.md* for the next patch version:
 
-~~~~~ text
-~~~~ markdown
-Version 1.2.4
--------------
+     ~~~~ markdown
+     Version 1.2.4
+     -------------
 
-To be released.
+     To be released.
 
 
-Version 1.2.3
--------------
+     Version 1.2.3
+     -------------
 
-Released on January 5, 2026.
-~~~~
-~~~~~
+     Released on January 5, 2026.
+     ~~~~
 
- 1.  Bump the version in *Cargo.toml*:
+ 2.  Bump the version in *Cargo.toml*:
 
-~~~~ text
-Change `version = "1.2.3"` to `version = "1.2.4"`.
-~~~~
+     Change `version = "1.2.3"` to `version = "1.2.4"`.
 
- 1.  Commit the version bump:
+ 3.  Commit the version bump:
 
-~~~~~ text
-~~~~ bash
-git add -A
-git commit -m "Version bump
+     ~~~~ bash
+     git add -A
+     git commit -m "Version bump
 
-[ci skip]"
-~~~~
-~~~~~
+     [ci skip]"
+     ~~~~
 
 ### Step 3: Push
 
@@ -142,117 +123,104 @@ branches and eventually to `main`.
 
  1.  Check if a newer maintenance branch exists (e.g., `1.3-maintenance`):
 
-~~~~~ text
-~~~~ bash
-git branch -a | grep maintenance
-~~~~
-~~~~~
+     ~~~~ bash
+     git branch -a | grep maintenance
+     ~~~~
 
- 1.  If a newer maintenance branch exists, follow these sub-steps:
+ 2.  If a newer maintenance branch exists, follow these sub-steps:
 
-~~~~~~ text
-a)  Check out the newer branch and merge the tag:
+     a)  Check out the newer branch and merge the tag:
 
-~~~~~
-~~~~ bash
-git checkout 1.3-maintenance
-git merge 1.2.3
-~~~~
-~~~~~
+     ~~~~~
+     ~~~~ bash
+     git checkout 1.3-maintenance
+     git merge 1.2.3
+     ~~~~
+     ~~~~~
+
+     b)  Resolve any conflicts (commonly in *CHANGES.md* and *Cargo.toml*).
+
+     c)  **Copy changelog entries**: After resolving conflicts, copy the
+    changelog entries from the merged tag's version into the current
+    branch's unreleased version section.  The entries should be inserted
+    *above* any existing entries.
+
+     ~~~~~
+     For example, if merging 1.2.3 into 1.3-maintenance where 1.3.2 is
+     pending:
+
+     *Before* (1.3-maintenance):
+
+     ~~~~ markdown
+     Version 1.3.2
+     -------------
+
+     To be released.
+
+      -  Added new logging features.
+     ~~~~
+
+     *Merged tag 1.2.3 contains*:
+
+     ~~~~ markdown
+     Version 1.2.3
+     -------------
+
+     Released on January 6, 2026.
+
+      -  Fixed a crash on startup.
+     ~~~~
+
+     *After* (1.3-maintenance):
+
+     ~~~~ markdown
+     Version 1.3.2
+     -------------
+
+     To be released.
+
+      -  Fixed a crash on startup.
+      -  Added new logging features.
+     ~~~~
+     ~~~~~
+
+     d)  Run tests to verify:
+
+     ~~~~~
+     ~~~~ bash
+     cargo test && cargo fmt --check && cargo clippy -- -D warnings
+     cargo run -- --check *.md
+     ~~~~
+     ~~~~~
+
+     e)  Complete the merge commit (use default message).
+
+     f)  Create a new patch release for this branch by repeating Steps 1-3
+    for version 1.3.x (e.g., 1.3.1).
+
+     g)  Continue cascading to even newer maintenance branches if they exist.
+
+ 3.  If no newer maintenance branch exists, merge to `main`:
+
+     ~~~~ bash
+     git checkout main
+     git merge 1.2.3  # or the last tag you created (e.g., 1.3.1)
+     ~~~~
+
+     Resolve conflicts, run tests, and push:
+
+     ~~~~ bash
+     cargo test && cargo fmt --check && cargo clippy -- -D warnings
+     cargo run -- --check *.md
+     git push origin main
+     ~~~~
 
 
-b)  Resolve any conflicts (commonly in *CHANGES.md* and *Cargo.toml*).
-
-c)  **Copy changelog entries**: After resolving conflicts, copy the
-changelog entries from the merged tag's version into the current
-branch's unreleased version section.  The entries should be inserted
-*above* any existing entries.
-
-~~~~~
-For example, if merging 1.2.3 into 1.3-maintenance where 1.3.2 is
-pending:
-
-*Before* (1.3-maintenance):
-
-~~~~ markdown
-Version 1.3.2
--------------
-
-To be released.
-
- -  Added new logging features.
-~~~~
-
-*Merged tag 1.2.3 contains*:
-
-~~~~ markdown
-Version 1.2.3
--------------
-
-Released on January 6, 2026.
-
- -  Fixed a crash on startup.
-~~~~
-
-*After* (1.3-maintenance):
-
-~~~~ markdown
-Version 1.3.2
--------------
-
-To be released.
-
- -  Fixed a crash on startup.
- -  Added new logging features.
-~~~~
-~~~~~
-
-
-d)  Run tests to verify:
-
-~~~~~
-~~~~ bash
-cargo test && cargo fmt --check && cargo clippy -- -D warnings
-cargo run -- --check *.md
-~~~~
-~~~~~
-
-
-e)  Complete the merge commit (use default message).
-
-f)  Create a new patch release for this branch by repeating Steps 1-3
-for version 1.3.x (e.g., 1.3.1).
-
-g)  Continue cascading to even newer maintenance branches if they exist.
-~~~~~~
-
- 1.  If no newer maintenance branch exists, merge to `main`:
-
-~~~~~ text
-~~~~ bash
-git checkout main
-git merge 1.2.3  # or the last tag you created (e.g., 1.3.1)
-~~~~
-
-
-Resolve conflicts, run tests, and push:
-
-~~~~ bash
-cargo test && cargo fmt --check && cargo clippy -- -D warnings
-cargo run -- --check *.md
-git push origin main
-~~~~
-~~~~~
-
-> [!IMPORTANT]
-
-Do *not* copy changelog entries to `main`.  The `main` branch tracks
-
-> ~~~~ text
-> the next major/minor release, so patch release entries should not be
-> duplicated there.  Just resolve conflicts and keep the existing
-> unreleased section as-is.
-> ~~~~
+     > [!IMPORTANT]
+     > Do *not* copy changelog entries to `main`.  The `main` branch tracks
+     > the next major/minor release, so patch release entries should not be
+     > duplicated there.  Just resolve conflicts and keep the existing
+     > unreleased section as-is.
 
 
 Major/minor releases
@@ -265,79 +233,65 @@ changes.  They are always created from the `main` branch with patch version 0.
 
  1.  Check out and update main:
 
-~~~~~ text
-~~~~ bash
-git checkout main
-git pull
-~~~~
-~~~~~
+     ~~~~ bash
+     git checkout main
+     git pull
+     ~~~~
 
- 1.  Update *CHANGES.md*: Find the section for the version being released and
+ 2.  Update *CHANGES.md*: Find the section for the version being released and
     change "To be released." to "Released on {Month} {Day}, {Year}." using
     the current date in English.  For example:
 
-~~~~~ text
-~~~~ markdown
-Version 1.3.0
--------------
+     ~~~~ markdown
+     Version 1.3.0
+     -------------
 
-Released on January 5, 2026.
-~~~~
-~~~~~
+     Released on January 5, 2026.
+     ~~~~
 
- 1.  Commit the changes:
+ 3.  Commit the changes:
 
-~~~~~ text
-~~~~ bash
-git add CHANGES.md
-git commit -m "Release 1.3.0"
-~~~~
-~~~~~
+     ~~~~ bash
+     git add CHANGES.md
+     git commit -m "Release 1.3.0"
+     ~~~~
 
- 1.  Create the tag (without `v` prefix).  Always use `-m` to provide a tag
+ 4.  Create the tag (without `v` prefix).  Always use `-m` to provide a tag
     message to avoid opening an editor for GPG-signed tags:
 
-~~~~~ text
-~~~~ bash
-git tag -m "Hongdown 1.3.0" 1.3.0
-~~~~
-~~~~~
+     ~~~~ bash
+     git tag -m "Hongdown 1.3.0" 1.3.0
+     ~~~~
 
 ### Step 2: Prepare next version on main
 
  1.  Add a new section at the top of *CHANGES.md* for the next minor version:
 
-~~~~~ text
-~~~~ markdown
-Version 1.4.0
--------------
+     ~~~~ markdown
+     Version 1.4.0
+     -------------
 
-To be released.
+     To be released.
 
 
-Version 1.3.0
--------------
+     Version 1.3.0
+     -------------
 
-Released on January 5, 2026.
-~~~~
-~~~~~
+     Released on January 5, 2026.
+     ~~~~
 
- 1.  Bump the version in *Cargo.toml*:
+ 2.  Bump the version in *Cargo.toml*:
 
-~~~~ text
-Change `version = "1.3.0"` to `version = "1.4.0"`.
-~~~~
+     Change `version = "1.3.0"` to `version = "1.4.0"`.
 
- 1.  Commit the version bump:
+ 3.  Commit the version bump:
 
-~~~~~ text
-~~~~ bash
-git add -A
-git commit -m "Version bump
+     ~~~~ bash
+     git add -A
+     git commit -m "Version bump
 
-[ci skip]"
-~~~~
-~~~~~
+     [ci skip]"
+     ~~~~
 
 ### Step 3: Push main and tag
 
@@ -349,61 +303,49 @@ git push origin 1.3.0 main
 
  1.  Create the maintenance branch from the release tag:
 
-~~~~~ text
-~~~~ bash
-git branch 1.3-maintenance 1.3.0
-~~~~
-~~~~~
+     ~~~~ bash
+     git branch 1.3-maintenance 1.3.0
+     ~~~~
 
- 1.  Check out the maintenance branch:
+ 2.  Check out the maintenance branch:
 
-~~~~~ text
-~~~~ bash
-git checkout 1.3-maintenance
-~~~~
-~~~~~
+     ~~~~ bash
+     git checkout 1.3-maintenance
+     ~~~~
 
- 1.  Add a section for the first patch version in *CHANGES.md*:
+ 3.  Add a section for the first patch version in *CHANGES.md*:
 
-~~~~~ text
-~~~~ markdown
-Version 1.3.1
--------------
+     ~~~~ markdown
+     Version 1.3.1
+     -------------
 
-To be released.
+     To be released.
 
 
-Version 1.3.0
--------------
+     Version 1.3.0
+     -------------
 
-Released on January 5, 2026.
-~~~~
-~~~~~
+     Released on January 5, 2026.
+     ~~~~
 
- 1.  Bump the version in *Cargo.toml*:
+ 4.  Bump the version in *Cargo.toml*:
 
-~~~~ text
-Change `version = "1.3.0"` to `version = "1.3.1"`.
-~~~~
+     Change `version = "1.3.0"` to `version = "1.3.1"`.
 
- 1.  Commit the version bump:
+ 5.  Commit the version bump:
 
-~~~~~ text
-~~~~ bash
-git add -A
-git commit -m "Version bump
+     ~~~~ bash
+     git add -A
+     git commit -m "Version bump
 
-[ci skip]"
-~~~~
-~~~~~
+     [ci skip]"
+     ~~~~
 
- 1.  Push the maintenance branch:
+ 6.  Push the maintenance branch:
 
-~~~~~ text
-~~~~ bash
-git push origin 1.3-maintenance
-~~~~
-~~~~~
+     ~~~~ bash
+     git push origin 1.3-maintenance
+     ~~~~
 
 
 Version format reference
