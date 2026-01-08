@@ -9,10 +9,36 @@ Project overview
 ----------------
 
 Hongdown is a Markdown formatter that enforces Hong Minhee's Markdown style
-conventions.  The formatter is implemented in Rust using the comrak library
-for parsing.  It produces consistently formatted Markdown output following
-a distinctive style used across multiple projects including Fedify, Hollo,
-and Vertana.
+conventions.  The formatter is implemented in Rust (Edition 2024) using the
+comrak library for parsing.  It produces consistently formatted Markdown
+output following a distinctive style used across multiple projects including
+Fedify, Hollo, and Vertana.
+
+### Project architecture
+
+~~~~ text
+hongdown/
+├── src/
+│   ├── main.rs           # CLI entry point (clap-based argument parsing)
+│   ├── lib.rs            # Library entry point (Options, format functions)
+│   ├── config.rs         # Configuration file handling (.hongdown.toml)
+│   └── serializer/       # Core formatting logic
+│       ├── mod.rs        # Main serializer module
+│       ├── state.rs      # Serializer state and types
+│       ├── block.rs      # Block quotes and GitHub alerts
+│       ├── code.rs       # Code blocks (fenced and indented)
+│       ├── document.rs   # Document-level handling
+│       ├── escape.rs     # Text escaping utilities
+│       ├── inline.rs     # Inline elements (emphasis, code spans)
+│       ├── link.rs       # Links and images
+│       ├── list.rs       # Ordered and unordered lists
+│       ├── table.rs      # Table formatting
+│       ├── wrap.rs       # Text wrapping utilities
+│       └── tests.rs      # Unit tests for serializer
+├── tests/
+│   └── integration.rs    # Integration tests
+└── npm/                  # npm package distribution
+~~~~
 
 
 Development commands
@@ -42,9 +68,27 @@ cargo build --release  # Release build
 ### Testing
 
 ~~~~ bash
-cargo test             # Run all tests
-cargo test <name>      # Run specific test
+cargo test                        # Run all tests
+cargo test <name>                 # Run tests matching a name pattern
+cargo test serialize_table        # e.g., runs all table serialization tests
+cargo test -- --nocapture         # Show println! output
+cargo test -- --test-threads=1    # Run tests sequentially
 ~~~~
+
+Tests are located in two places:
+
+ -  *Unit tests*: *src/serializer/tests.rs* contains serializer tests
+ -  *Integration tests*: *tests/integration.rs* contains CLI and full
+    document tests
+
+Test helper functions in *src/serializer/tests.rs*:
+
+ -  `parse_and_serialize(input)` - Format with default options
+ -  `parse_and_serialize_with_options(input, options)` - Format with custom
+    options
+ -  `parse_and_serialize_with_source(input)` - Format with source context
+    for directive support
+ -  `parse_and_serialize_with_warnings(input)` - Format and capture warnings
 
 ### Quality checks
 
@@ -194,6 +238,36 @@ Development tips
 Code style
 ----------
 
+This project uses default `rustfmt` formatting (no *rustfmt.toml*) and default
+clippy lints (no *clippy.toml*).  Run `cargo fmt` to format code.
+
+### Imports
+
+Organize imports in this order, with blank lines between groups:
+
+ 1.  Standard library (`use std::...`)
+ 2.  External crates (`use clap::...`, `use comrak::...`)
+ 3.  Internal modules (`use super::...`, `use crate::...`)
+
+~~~~ rust
+use std::fs;
+use std::path::PathBuf;
+
+use clap::Parser;
+use comrak::{Arena, Options as ComrakOptions};
+
+use crate::config::Config;
+~~~~
+
+### Naming conventions
+
+ -  *Modules and files*: `snake_case` (e.g., *code\_block.rs*)
+ -  *Types and traits*: `PascalCase` (e.g., `Serializer`, `FormatError`)
+ -  *Functions and methods*: `snake_case` (e.g., `serialize_node`)
+ -  *Constants*: `SCREAMING_SNAKE_CASE` (e.g., `CONFIG_FILE_NAME`)
+ -  *Method prefixes*: Use `serialize_*` for serialization, `is_*` for
+    boolean checks, `with_*` for builder patterns
+
 ### Type safety
 
  -  All code must be type-safe.  Avoid using `unsafe` blocks unless
@@ -203,9 +277,51 @@ Code style
 
 ### Error handling
 
- -  Use the `thiserror` crate for defining custom error types.
+ -  Define custom error types as `enum` with descriptive variants.
+ -  Manually implement `std::fmt::Display` and `std::error::Error` traits.
+ -  Include context in error messages (e.g., file paths, pattern names).
  -  Prefer `Result` over `panic!` for recoverable errors.
  -  End error messages with a period.
+
+Example error type pattern:
+
+~~~~ rust
+#[derive(Debug)]
+pub enum ConfigError {
+    Io(PathBuf, std::io::Error),
+    Parse(PathBuf, toml::de::Error),
+}
+
+impl std::fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConfigError::Io(path, err) => {
+                write!(f, "failed to read {}: {}", path.display(), err)
+            }
+            ConfigError::Parse(path, err) => {
+                write!(f, "failed to parse {}: {}", path.display(), err)
+            }
+        }
+    }
+}
+
+impl std::error::Error for ConfigError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            ConfigError::Io(_, err) => Some(err),
+            ConfigError::Parse(_, err) => Some(err),
+        }
+    }
+}
+~~~~
+
+### Struct patterns
+
+ -  Use `#[derive(...)]` extensively for common traits.
+ -  Common derives: `Debug`, `Clone`, `PartialEq`.
+ -  For serde: `#[derive(Deserialize)]`, `#[serde(default)]`,
+    `#[serde(rename_all = "lowercase")]`.
+ -  Implement `Default` for configuration structs.
 
 ### API documentation
 
