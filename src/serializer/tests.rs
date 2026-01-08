@@ -925,6 +925,17 @@ fn test_directive_disable_file_after_front_matter() {
 }
 
 #[test]
+fn test_directive_disable_file_preserves_trailing_newline() {
+    // hongdown-disable-file should preserve trailing newline
+    let input = "<!-- hongdown-disable-file -->\n\n# Title\n\nSome text.\n";
+    let result = parse_and_serialize_with_source(input);
+    assert_eq!(
+        result, input,
+        "disable-file should preserve trailing newline"
+    );
+}
+
+#[test]
 fn test_directive_disable_next_section() {
     // hongdown-disable-next-section should preserve content until the next heading
     let input = "First section\n-------------\n\nNormal content.\n\n<!-- hongdown-disable-next-section -->\n\nSecond section\n--------------\n\n[![Badge][img]][url]\n\n[img]: https://example.com/img.svg\n[url]: https://example.com\n\nThird section\n-------------\n\nThis should be formatted normally.";

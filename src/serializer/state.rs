@@ -110,10 +110,16 @@ pub struct Serializer<'a> {
     pub warnings: Vec<Warning>,
     /// Maximum number of items in the current ordered list (for padding calculation)
     pub ordered_list_max_items: usize,
+    /// Whether the original source ends with a newline
+    pub source_ends_with_newline: bool,
 }
 
 impl<'a> Serializer<'a> {
-    pub fn new(options: &'a Options, source_lines: Vec<&'a str>) -> Self {
+    pub fn new(
+        options: &'a Options,
+        source_lines: Vec<&'a str>,
+        source_ends_with_newline: bool,
+    ) -> Self {
         Self {
             output: String::new(),
             options,
@@ -134,6 +140,7 @@ impl<'a> Serializer<'a> {
             in_description_details: false,
             warnings: Vec::new(),
             ordered_list_max_items: 0,
+            source_ends_with_newline,
         }
     }
 
@@ -212,6 +219,10 @@ impl<'a> Serializer<'a> {
                 result.push('\n');
             }
             result.push_str(line);
+        }
+        // Preserve trailing newline if the original source had one
+        if self.source_ends_with_newline {
+            result.push('\n');
         }
         Some(result)
     }

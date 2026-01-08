@@ -43,7 +43,8 @@ pub fn serialize_with_source_and_warnings<'a>(
     source: Option<&str>,
 ) -> SerializeResult {
     let source_lines: Vec<&str> = source.map(|s| s.lines().collect()).unwrap_or_default();
-    let mut serializer = Serializer::new(options, source_lines);
+    let source_ends_with_newline = source.is_some_and(|s| s.ends_with('\n'));
+    let mut serializer = Serializer::new(options, source_lines, source_ends_with_newline);
     serializer.serialize_node(node);
     SerializeResult {
         output: serializer.output,
