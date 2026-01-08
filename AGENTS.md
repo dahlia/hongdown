@@ -91,7 +91,6 @@ Additional TDD guidelines:
     - Fixed bar
     ~~~~
 
-
  -  When using LLMs or coding agents, include credit via `Co-Authored-By:`.
     Include a permalink to the agent session if available.
 
@@ -109,7 +108,6 @@ Development tips
     cargo add serde --features derive
     cargo add tokio --features full
     ~~~~
-
 
  -  *Check before adding*: Before adding a new dependency, consider whether
     the functionality can be achieved with existing dependencies or the
@@ -146,13 +144,11 @@ Development tips
     cargo run -- -w README.md AGENTS.md
     ~~~~
 
-
  -  *Before committing*: Always run the full quality check suite:
 
     ~~~~ bash
     cargo test && cargo fmt --check && cargo clippy -- -D warnings
     ~~~~
-
 
 ### Performance considerations
 
@@ -207,13 +203,11 @@ documentation:
     ------------
     ~~~~
 
-
  -  *ATX-style headings*: Use only for subsections within a section:
 
     ~~~~
     ### Subsection Name
     ~~~~
-
 
  -  *Heading case*: Use sentence case (capitalize only the first word and
     proper nouns) rather than Title Case:
@@ -222,7 +216,6 @@ documentation:
     Development commands    <- Correct
     Development Commands    <- Incorrect
     ~~~~
-
 
 ### Text formatting
 
@@ -246,7 +239,6 @@ documentation:
      -  *Second item*: Another item
     ~~~~
 
-
 ### Code blocks
 
  -  Use four tildes (`~~~~`) for code fences instead of backticks
@@ -259,7 +251,6 @@ documentation:
     ~~~~
     ~~~~~
 
-
  -  For shell commands, use `bash`:
 
     ~~~~~
@@ -267,7 +258,6 @@ documentation:
     cargo test
     ~~~~
     ~~~~~
-
 
 ### Links
 
@@ -281,7 +271,6 @@ documentation:
 
     [comrak documentation]: https://docs.rs/comrak
     ~~~~
-
 
 ### GitHub alerts
 
