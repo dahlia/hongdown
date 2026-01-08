@@ -122,7 +122,7 @@ This section is formatted again.
 
 ### Configuration file
 
-Hongdown looks for a `.hongdown.toml` file in the current directory and
+Hongdown looks for a *.hongdown.toml* file in the current directory and
 parent directories.  You can also specify a configuration file explicitly
 with the `--config` option.
 

@@ -226,10 +226,11 @@ documentation:
 
 ### Text formatting
 
- -  *Italics* (`*text*`): Use for emphasis and to distinguish concepts
+ -  *Italics* (`*text*`): Use for emphasis and to distinguish concepts, and
+    for file paths and filenames
  -  *Bold* (`**text**`): Use sparingly for strong emphasis
  -  *Inline code* (`` `code` ``): Use for code spans, function names,
-    filenames, and command-line options
+    and command-line options
 
 ### Lists
 
