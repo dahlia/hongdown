@@ -1962,3 +1962,35 @@ fn test_reference_after_abbreviation_no_warning() {
         result.warnings
     );
 }
+
+#[test]
+fn test_heading_with_image() {
+    // Images in headings should be preserved
+    let result = parse_and_serialize("# ![logo](./logo.svg) Title");
+    assert_eq!(
+        result,
+        "![logo](./logo.svg) Title\n=========================\n"
+    );
+}
+
+#[test]
+fn test_heading_with_image_no_alt() {
+    // Images without alt text in headings should be preserved
+    let result = parse_and_serialize("# ![](./logo.svg) Title");
+    assert_eq!(result, "![](./logo.svg) Title\n=====================\n");
+}
+
+#[test]
+fn test_heading_with_image_only() {
+    // Heading containing only an image
+    let result = parse_and_serialize("# ![logo](./logo.svg)");
+    assert_eq!(result, "![logo](./logo.svg)\n===================\n");
+}
+
+#[test]
+fn test_setext_heading_with_image_on_previous_line() {
+    // When image is on a separate line before setext heading text,
+    // they form a single heading (per Markdown spec)
+    let result = parse_and_serialize("![](./logo.svg)\nTitle\n=====");
+    assert_eq!(result, "![](./logo.svg) Title\n=====================\n");
+}

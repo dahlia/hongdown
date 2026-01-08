@@ -87,6 +87,11 @@ impl<'a> Serializer<'a> {
                     }
                 }
             }
+            NodeValue::Image(image) => {
+                // Preserve images in headings using inline syntax
+                let alt_text = self.collect_raw_text(node);
+                Self::format_inline_image(text, &alt_text, &image.url, &image.title);
+            }
             _ => {
                 for child in node.children() {
                     self.collect_text_recursive(child, text);
