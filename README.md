@@ -5,11 +5,11 @@ Hongdown
 [![npm][npm badge]][npm]
 [![GitHub Actions][GitHub Actions badge]][GitHub Actions]
 
-Hongdown is a Markdown formatter that enforces [Hong Minhee's Markdown style]
-conventions.  The formatter is implemented in Rust using the [Comrak] library
-for parsing.  It produces consistently formatted Markdown output following
-a distinctive style used across multiple projects including [Fedify], [LogTape],
-and [Optique].
+Hongdown is a Markdown formatter that enforces [Hong Minhee's Markdown
+style](./STYLE.md) conventions.  The formatter is implemented in Rust using
+the [Comrak] library for parsing.  It produces consistently formatted Markdown
+output following a distinctive style used across multiple projects including
+[Fedify], [LogTape], and [Optique].
 
 [crates.io badge]: https://img.shields.io/crates/v/hongdown?logo=rust
 [crates.io]: https://crates.io/crates/hongdown
@@ -17,7 +17,6 @@ and [Optique].
 [npm]: https://www.npmjs.com/package/hongdown
 [GitHub Actions badge]: https://github.com/dahlia/hongdown/actions/workflows/main.yaml/badge.svg
 [GitHub Actions]: https://github.com/dahlia/hongdown/actions/workflows/main.yaml
-[Hong Minhee's Markdown style]: ./AGENTS.md#markdown-style-guide
 [Comrak]: https://comrak.ee/
 [Fedify]: https://fedify.dev/
 [LogTape]: https://logtape.org/
@@ -250,9 +249,8 @@ See the [documentation] for more details.
  -  Pipes are aligned accounting for East Asian wide characters
  -  Minimum column width is maintained
 
-See the [*Markdown style guide*] for more detailed style conventions.
-
-[*Markdown style guide*]: ./AGENTS.md#markdown-style-guide
+See *[STYLE.md](./STYLE.md)* for the complete style specification, including
+the philosophy behind these conventions and detailed formatting rules.
 
 
 Library usage
