@@ -254,4 +254,30 @@ impl<'a> Serializer<'a> {
     pub fn is_external_url(url: &str) -> bool {
         url.starts_with("http://") || url.starts_with("https://")
     }
+
+    /// Get the emphasis delimiter character used in the original source.
+    /// Returns '_' or '*' based on what was used in the source.
+    /// Defaults to '*' if source is not available.
+    pub fn get_emphasis_delimiter<'b>(&self, node: &'b AstNode<'b>) -> char {
+        if let Some(source) = self.extract_source(node) {
+            // The source for an emphasis node starts with the delimiter
+            if source.starts_with('_') {
+                return '_';
+            }
+        }
+        '*'
+    }
+
+    /// Get the strong emphasis delimiter string used in the original source.
+    /// Returns "__" or "**" based on what was used in the source.
+    /// Defaults to "**" if source is not available.
+    pub fn get_strong_delimiter<'b>(&self, node: &'b AstNode<'b>) -> &'static str {
+        if let Some(source) = self.extract_source(node) {
+            // The source for a strong emphasis node starts with the delimiter
+            if source.starts_with("__") {
+                return "__";
+            }
+        }
+        "**"
+    }
 }

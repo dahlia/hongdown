@@ -186,6 +186,20 @@ fn test_serialize_emphasis() {
 }
 
 #[test]
+fn test_serialize_underscore_emphasis_preserved() {
+    // Underscore emphasis should be preserved as underscore, not converted to asterisk
+    let result = parse_and_serialize_with_source("This is _emphasized_ text.");
+    assert_eq!(result, "This is _emphasized_ text.\n");
+}
+
+#[test]
+fn test_serialize_mixed_emphasis_preserved() {
+    // Mixed emphasis styles should each be preserved
+    let result = parse_and_serialize_with_source("This is _underscore_ and *asterisk* emphasis.");
+    assert_eq!(result, "This is _underscore_ and *asterisk* emphasis.\n");
+}
+
+#[test]
 fn test_serialize_strong() {
     let result = parse_and_serialize("This is **strong** text.");
     assert_eq!(result, "This is **strong** text.\n");
@@ -784,6 +798,16 @@ fn test_serialize_escaped_underscore() {
     let input = r"\_\_init\_\_";
     let result = parse_and_serialize(input);
     assert_eq!(result, "\\_\\_init\\_\\_\n");
+}
+
+#[test]
+fn test_serialize_escaped_underscore_in_emphasis() {
+    // Escaped underscores inside emphasis should be preserved
+    // This is common for filenames like *node\_modules* where the underscore
+    // needs escaping to prevent it from ending the emphasis
+    let input = r"*node\_modules*";
+    let result = parse_and_serialize_with_source(input);
+    assert_eq!(result, "*node\\_modules*\n");
 }
 
 #[test]

@@ -38,24 +38,31 @@ impl<'a> Serializer<'a> {
     fn collect_text_recursive<'b>(&mut self, node: &'b AstNode<'b>, text: &mut String) {
         match &node.data.borrow().value {
             NodeValue::Text(t) => {
-                text.push_str(&escape::escape_text(t));
+                // Try to preserve escapes from the original source
+                if let Some(source) = self.extract_source(node) {
+                    text.push_str(&Self::escape_text_preserving_source(t, &source));
+                } else {
+                    text.push_str(&escape::escape_text(t));
+                }
             }
             NodeValue::Code(code) => {
                 text.push_str(&escape::format_code_span(&code.literal));
             }
             NodeValue::Emph => {
-                text.push('*');
+                let delim = self.get_emphasis_delimiter(node);
+                text.push(delim);
                 for child in node.children() {
                     self.collect_text_recursive(child, text);
                 }
-                text.push('*');
+                text.push(delim);
             }
             NodeValue::Strong => {
-                text.push_str("**");
+                let delim = self.get_strong_delimiter(node);
+                text.push_str(delim);
                 for child in node.children() {
                     self.collect_text_recursive(child, text);
                 }
-                text.push_str("**");
+                text.push_str(delim);
             }
             NodeValue::SoftBreak => {
                 text.push(' ');
@@ -101,7 +108,12 @@ impl<'a> Serializer<'a> {
     pub(super) fn collect_inline_node<'b>(&mut self, node: &'b AstNode<'b>, content: &mut String) {
         match &node.data.borrow().value {
             NodeValue::Text(text) => {
-                content.push_str(&escape::escape_text(text));
+                // Try to preserve escapes from the original source
+                if let Some(source) = self.extract_source(node) {
+                    content.push_str(&Self::escape_text_preserving_source(text, &source));
+                } else {
+                    content.push_str(&escape::escape_text(text));
+                }
             }
             NodeValue::SoftBreak => {
                 // Use a special marker to preserve original line breaks
@@ -112,18 +124,20 @@ impl<'a> Serializer<'a> {
                 content.push('\n');
             }
             NodeValue::Emph => {
-                content.push('*');
+                let delim = self.get_emphasis_delimiter(node);
+                content.push(delim);
                 for child in node.children() {
                     self.collect_inline_node(child, content);
                 }
-                content.push('*');
+                content.push(delim);
             }
             NodeValue::Strong => {
-                content.push_str("**");
+                let delim = self.get_strong_delimiter(node);
+                content.push_str(delim);
                 for child in node.children() {
                     self.collect_inline_node(child, content);
                 }
-                content.push_str("**");
+                content.push_str(delim);
             }
             NodeValue::Code(code) => {
                 content.push_str(&escape::format_code_span(&code.literal));
@@ -227,5 +241,58 @@ impl<'a> Serializer<'a> {
                 }
             }
         }
+    }
+
+    /// Escape text while preserving escapes from the original source.
+    ///
+    /// When comrak parses text like `node\_modules`, it stores `node_modules` in the AST.
+    /// This function compares the parsed text with the original source to detect which
+    /// characters were escaped, and preserves those escapes in the output.
+    fn escape_text_preserving_source(text: &str, source: &str) -> String {
+        let mut result = String::with_capacity(source.len());
+        let text_chars: Vec<char> = text.chars().collect();
+        let source_chars: Vec<char> = source.chars().collect();
+
+        let mut text_idx = 0;
+        let mut source_idx = 0;
+
+        while text_idx < text_chars.len() && source_idx < source_chars.len() {
+            let text_char = text_chars[text_idx];
+            let source_char = source_chars[source_idx];
+
+            if source_char == '\\' && source_idx + 1 < source_chars.len() {
+                // Source has an escape sequence
+                let escaped_char = source_chars[source_idx + 1];
+                if escaped_char == text_char {
+                    // The escape in source corresponds to this character in text
+                    // Preserve the escape
+                    result.push('\\');
+                    result.push(escaped_char);
+                    text_idx += 1;
+                    source_idx += 2;
+                } else {
+                    // Escape doesn't match - use normal escaping
+                    result.push_str(&escape::escape_text(&text_char.to_string()));
+                    text_idx += 1;
+                    // Don't advance source_idx - the escape might be for something else
+                }
+            } else if source_char == text_char {
+                // Characters match - apply normal escaping rules
+                result.push_str(&escape::escape_text(&text_char.to_string()));
+                text_idx += 1;
+                source_idx += 1;
+            } else {
+                // Characters don't match - source might have extra content (e.g., HTML entities)
+                // Skip the source character and try again
+                source_idx += 1;
+            }
+        }
+
+        // Handle any remaining text characters that weren't matched
+        for ch in text_chars.iter().skip(text_idx) {
+            result.push_str(&escape::escape_text(&ch.to_string()));
+        }
+
+        result
     }
 }
