@@ -304,7 +304,9 @@ impl<'a> Serializer<'a> {
         let first_line_width = 80 - prefix.len();
         let continuation_width = 80 - continuation_indent.len();
 
-        let words: Vec<&str> = footnote.content.split_whitespace().collect();
+        // Replace SoftBreak marker (\x00) with space before processing
+        let content = footnote.content.replace('\x00', " ");
+        let words: Vec<&str> = content.split_whitespace().collect();
         if words.is_empty() {
             self.output.push_str(&prefix);
             self.output.push('\n');
