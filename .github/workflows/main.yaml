@@ -109,6 +109,32 @@ jobs:
       uses: taiki-e/setup-cross-toolchain-action@v1
       with:
         target: ${{ matrix.target }}
+    - name: Install dasel
+      if: github.ref_type != 'tag'
+      shell: bash
+      env:
+        DASEL_VERSION: "3.2.1"
+      run: |
+        set -euxo pipefail
+        case "$RUNNER_OS" in
+          Linux)   BINARY="dasel_linux_amd64" ;;
+          macOS)   BINARY="dasel_darwin_arm64" ;;
+          Windows) BINARY="dasel_windows_amd64.exe" ;;
+        esac
+        curl -sSLf \
+          "https://github.com/TomWright/dasel/releases/download/v${DASEL_VERSION}/${BINARY}" \
+          -o dasel
+        chmod +x dasel
+        echo "$PWD" >> "$GITHUB_PATH"
+    - name: Set version in Cargo.toml
+      if: github.ref_type != 'tag'
+      shell: bash
+      env:
+        VERSION: ${{ needs.version.outputs.version }}
+      run: |
+        dasel -i toml --root "package.version = \"$VERSION\"" \
+          < Cargo.toml > Cargo.toml.new
+        mv Cargo.toml.new Cargo.toml
     - run: cargo build --release --target ${{ matrix.target }}
     - name: Create archive
       id: archive
@@ -195,13 +221,26 @@ jobs:
         echo "Version verified: $VERSION"
 
     # For dev releases: update Cargo.toml with dev version
+    - name: Install dasel
+      if: github.ref_type != 'tag'
+      env:
+        DASEL_VERSION: "3.2.1"
+      run: |
+        set -euxo pipefail
+        curl -sSLf \
+          "https://github.com/TomWright/dasel/releases/download/v${DASEL_VERSION}/dasel_linux_amd64" \
+          -o dasel
+        chmod +x dasel
+        echo "$PWD" >> "$GITHUB_PATH"
     - name: Set dev version
       if: github.ref_type != 'tag'
       env:
         VERSION: ${{ needs.version.outputs.version }}
       run: |
         set -euxo pipefail
-        sed -i "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
+        dasel -i toml --root "package.version = \"$VERSION\"" \
+          < Cargo.toml > Cargo.toml.new
+        mv Cargo.toml.new Cargo.toml
         echo "Dev version set: $VERSION"
         cargo update --package hongdown
 
@@ -232,6 +271,16 @@ jobs:
         node-version: '24'
         registry-url: https://registry.npmjs.org
 
+    - name: Install dasel
+      env:
+        DASEL_VERSION: "3.2.1"
+      run: |
+        set -euxo pipefail
+        curl -sSLf \
+          "https://github.com/TomWright/dasel/releases/download/v${DASEL_VERSION}/dasel_linux_amd64" \
+          -o dasel
+        chmod +x dasel
+        echo "$PWD" >> "$GITHUB_PATH"
     - name: Prepare npm packages
       env:
         VERSION: ${{ needs.version.outputs.version }}
@@ -240,8 +289,16 @@ jobs:
         cd npm
 
         # Update version in main package
-        sed -i "s/\"version\": \"0.0.0\"/\"version\": \"$VERSION\"/g" package.json
-        sed -i "s/\": \"0.0.0\"/\": \"$VERSION\"/g" package.json
+        dasel -i json --root "version = \"$VERSION\"" \
+          < package.json > package.json.tmp
+        mv package.json.tmp package.json
+
+        # Update optionalDependencies versions
+        for pkg in darwin-arm64 darwin-x64 linux-arm64 linux-x64 win32-arm64 win32-x64; do
+          dasel -i json --root "optionalDependencies[\"@hongdown/$pkg\"] = \"$VERSION\"" \
+            < package.json > package.json.tmp
+          mv package.json.tmp package.json
+        done
 
         # Copy README
         cp ../README.md .
