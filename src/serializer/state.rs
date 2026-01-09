@@ -155,9 +155,12 @@ pub struct Serializer<'a> {
     /// Whether we're currently collecting footnote content.
     /// When true, reference links are added to pending_footnote_references instead.
     pub collecting_footnote_content: bool,
+    /// The reference line of the footnote currently being collected.
+    /// Used to associate references with their parent footnote's timing.
+    pub current_footnote_reference_line: usize,
     /// Reference links collected from within footnote definitions.
-    /// These are output after footnote definitions, not before.
-    pub pending_footnote_references: IndexMap<String, ReferenceLink>,
+    /// Value is (ReferenceLink, footnote_reference_line) to track when to flush.
+    pub pending_footnote_references: IndexMap<String, (ReferenceLink, usize)>,
 }
 
 impl<'a> Serializer<'a> {
@@ -192,6 +195,7 @@ impl<'a> Serializer<'a> {
             blockquote_outer_indent: String::new(),
             blockquote_entry_list_depth: 0,
             collecting_footnote_content: false,
+            current_footnote_reference_line: 0,
             pending_footnote_references: IndexMap::new(),
         }
     }
@@ -281,7 +285,8 @@ impl<'a> Serializer<'a> {
     }
 
     /// Add a reference link to the pending references.
-    /// If collecting_footnote_content is true, adds to pending_footnote_references instead.
+    /// If collecting_footnote_content is true, adds to pending_footnote_references instead,
+    /// along with the current footnote's reference line for proper flush timing.
     pub fn add_reference(&mut self, label: String, url: String, title: String) {
         let reference = ReferenceLink {
             label: label.clone(),
@@ -289,7 +294,8 @@ impl<'a> Serializer<'a> {
             title,
         };
         if self.collecting_footnote_content {
-            self.pending_footnote_references.insert(label, reference);
+            self.pending_footnote_references
+                .insert(label, (reference, self.current_footnote_reference_line));
         } else {
             self.pending_references.insert(label, reference);
         }

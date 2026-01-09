@@ -114,6 +114,7 @@ impl<'a> Serializer<'a> {
                 let heading_line = child.data.borrow().sourcepos.start.line;
                 self.flush_references();
                 self.flush_footnotes_before(Some(heading_line));
+                self.flush_footnote_references_before(Some(heading_line));
             }
 
             // Add blank line between block elements (except after front matter)

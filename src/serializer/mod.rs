@@ -294,24 +294,38 @@ impl<'a> Serializer<'a> {
         self.flush_footnotes_before(None);
     }
 
-    /// Output pending footnote reference definitions (references from within footnotes).
-    /// These are output after footnote definitions to maintain proper ordering.
-    fn flush_footnote_references(&mut self) {
+    /// Output pending footnote reference definitions whose parent footnote was referenced
+    /// before the given line. If `before_line` is None, flush all pending footnote references.
+    fn flush_footnote_references_before(&mut self, before_line: Option<usize>) {
         if self.pending_footnote_references.is_empty() {
             return;
         }
 
-        // Take ownership of references to avoid borrow issues
-        // Filter out references that have already been emitted
-        let refs: Vec<ReferenceLink> = self
-            .pending_footnote_references
-            .values()
-            .filter(|r| !self.emitted_references.contains(&r.label))
-            .cloned()
-            .collect();
-        self.pending_footnote_references.clear();
+        // Separate references to emit vs keep, based on their parent footnote's reference line
+        let mut to_emit: Vec<ReferenceLink> = Vec::new();
+        let mut to_keep: Vec<(String, (ReferenceLink, usize))> = Vec::new();
 
-        if refs.is_empty() {
+        for (label, (reference, footnote_ref_line)) in self.pending_footnote_references.drain(..) {
+            if self.emitted_references.contains(&label) {
+                continue;
+            }
+            let should_emit = match before_line {
+                Some(line) => footnote_ref_line > 0 && footnote_ref_line < line,
+                None => true,
+            };
+            if should_emit {
+                to_emit.push(reference);
+            } else {
+                to_keep.push((label, (reference, footnote_ref_line)));
+            }
+        }
+
+        // Put back references that shouldn't be emitted yet
+        for (label, value) in to_keep {
+            self.pending_footnote_references.insert(label, value);
+        }
+
+        if to_emit.is_empty() {
             return;
         }
 
@@ -324,11 +338,16 @@ impl<'a> Serializer<'a> {
             }
         }
 
-        // Output all references in insertion order
-        for reference in &refs {
+        // Output references in insertion order
+        for reference in &to_emit {
             Self::write_reference(&mut self.output, reference);
             self.emitted_references.insert(reference.label.clone());
         }
+    }
+
+    /// Output all pending footnote reference definitions.
+    fn flush_footnote_references(&mut self) {
+        self.flush_footnote_references_before(None);
     }
 
     /// Write a single footnote definition to output, wrapping at 80 characters
@@ -519,20 +538,23 @@ impl<'a> Serializer<'a> {
                 self.output.push(']');
             }
             NodeValue::FootnoteDefinition(footnote_def) => {
-                // Collect content from children
-                // Set flag so references within footnotes go to pending_footnote_references
-                self.collecting_footnote_content = true;
-                let mut content = String::new();
-                for child in node.children() {
-                    self.collect_inline_node(child, &mut content);
-                }
-                self.collecting_footnote_content = false;
                 // Use the reference line (where footnote was used), not definition line
                 let reference_line = self
                     .footnote_reference_lines
                     .get(&footnote_def.name)
                     .copied()
                     .unwrap_or(0);
+                // Collect content from children
+                // Set flag so references within footnotes go to pending_footnote_references
+                // Also set the current footnote's reference line for proper flush timing
+                self.collecting_footnote_content = true;
+                self.current_footnote_reference_line = reference_line;
+                let mut content = String::new();
+                for child in node.children() {
+                    self.collect_inline_node(child, &mut content);
+                }
+                self.collecting_footnote_content = false;
+                self.current_footnote_reference_line = 0;
                 // Add to pending footnotes (will be flushed at section end)
                 self.add_footnote(
                     footnote_def.name.clone(),

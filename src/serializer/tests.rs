@@ -2511,3 +2511,73 @@ Blocks are usually used for paragraphs.
         result
     );
 }
+
+#[test]
+fn test_footnote_references_at_section_boundary() {
+    // When a footnote with reference links is in a section followed by another section,
+    // both the footnote and its reference definitions should appear before the next section,
+    // with the footnote coming first and references coming after.
+    let input = r#"Title
+=====
+
+Introduction paragraph.
+
+
+First section
+-------------
+
+Some text with footnote.[^1]
+
+[^1]: This footnote references [`Link1`] and [Link2].
+
+[`Link1`]: https://example.com/link1
+[Link2]: https://example.com/link2
+
+
+Second section
+--------------
+
+More content here.
+"#;
+    let result = parse_and_serialize(input);
+
+    // Find positions of key elements
+    let first_section_pos = result
+        .find("First section")
+        .expect("First section not found");
+    let second_section_pos = result
+        .find("Second section")
+        .expect("Second section not found");
+    let footnote_pos = result.find("[^1]:").expect("footnote not found");
+    let ref1_pos = result.find("[`Link1`]:").expect("Link1 ref not found");
+    let ref2_pos = result.find("[Link2]:").expect("Link2 ref not found");
+
+    // All should be between first and second section
+    assert!(
+        footnote_pos > first_section_pos && footnote_pos < second_section_pos,
+        "Footnote should be in first section.\nGot:\n{}",
+        result
+    );
+    assert!(
+        ref1_pos > first_section_pos && ref1_pos < second_section_pos,
+        "Link1 reference should be in first section.\nGot:\n{}",
+        result
+    );
+    assert!(
+        ref2_pos > first_section_pos && ref2_pos < second_section_pos,
+        "Link2 reference should be in first section.\nGot:\n{}",
+        result
+    );
+
+    // Footnote should come before references
+    assert!(
+        footnote_pos < ref1_pos,
+        "Footnote should come before Link1 reference.\nGot:\n{}",
+        result
+    );
+    assert!(
+        footnote_pos < ref2_pos,
+        "Footnote should come before Link2 reference.\nGot:\n{}",
+        result
+    );
+}
