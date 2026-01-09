@@ -81,6 +81,81 @@ pub struct FootnoteDefinition {
     pub reference_line: usize,
 }
 
+/// Manages footnote definitions and their reference tracking.
+///
+/// This struct encapsulates all state related to footnote processing:
+/// - Pending footnote definitions waiting to be emitted
+/// - Tracking which footnotes have been emitted
+/// - Line numbers where footnotes are referenced
+/// - Reference links found within footnote content
+#[derive(Debug, Default)]
+pub struct FootnoteSet {
+    /// Footnote definitions collected for the current section.
+    /// Key: name, Value: FootnoteDefinition (insertion order preserved)
+    pub pending: IndexMap<String, FootnoteDefinition>,
+    /// Footnote names that have already been emitted (to avoid duplicates)
+    pub emitted: std::collections::HashSet<String>,
+    /// Line numbers where footnotes were referenced (key: footnote name)
+    pub reference_lines: std::collections::HashMap<String, usize>,
+    /// Whether we're currently collecting footnote content.
+    /// When true, reference links are added to `pending_references` instead of
+    /// the main reference collection.
+    pub collecting_content: bool,
+    /// The reference line of the footnote currently being collected.
+    /// Used to associate references with their parent footnote's timing.
+    pub current_reference_line: usize,
+    /// Reference links collected from within footnote definitions.
+    /// Value is (ReferenceLink, footnote_reference_line) to track when to flush.
+    pub pending_references: IndexMap<String, (ReferenceLink, usize)>,
+}
+
+impl FootnoteSet {
+    /// Create a new empty FootnoteSet.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Add a footnote definition.
+    pub fn add(&mut self, name: String, content: String, reference_line: usize) {
+        self.pending.insert(
+            name.clone(),
+            FootnoteDefinition {
+                name,
+                content,
+                reference_line,
+            },
+        );
+    }
+
+    /// Record the line where a footnote is referenced.
+    pub fn record_reference_line(&mut self, name: String, line: usize) {
+        self.reference_lines.entry(name).or_insert(line);
+    }
+
+    /// Get the reference line for a footnote.
+    pub fn get_reference_line(&self, name: &str) -> Option<usize> {
+        self.reference_lines.get(name).copied()
+    }
+
+    /// Start collecting content for a footnote.
+    pub fn start_collecting(&mut self, reference_line: usize) {
+        self.collecting_content = true;
+        self.current_reference_line = reference_line;
+    }
+
+    /// Stop collecting content for a footnote.
+    pub fn stop_collecting(&mut self) {
+        self.collecting_content = false;
+        self.current_reference_line = 0;
+    }
+
+    /// Add a reference link found within footnote content.
+    pub fn add_reference(&mut self, label: String, reference: ReferenceLink) {
+        self.pending_references
+            .insert(label, (reference, self.current_reference_line));
+    }
+}
+
 /// A warning generated during formatting.
 #[derive(Debug, Clone)]
 pub struct Warning {
@@ -140,13 +215,8 @@ pub struct Serializer<'a> {
     pub pending_references: IndexMap<String, ReferenceLink>,
     /// Reference labels that have already been emitted (to avoid duplicates)
     pub emitted_references: std::collections::HashSet<String>,
-    /// Footnote definitions collected for the current section
-    /// Key: name, Value: FootnoteDefinition (insertion order preserved)
-    pub pending_footnotes: IndexMap<String, FootnoteDefinition>,
-    /// Footnote names that have already been emitted (to avoid duplicates)
-    pub emitted_footnotes: std::collections::HashSet<String>,
-    /// Line numbers where footnotes were referenced (key: footnote name)
-    pub footnote_reference_lines: std::collections::HashMap<String, usize>,
+    /// Footnote definitions and their reference tracking
+    pub footnotes: FootnoteSet,
     /// Current list nesting depth (0 = not in list, 1 = top-level, 2+ = nested)
     pub list_depth: usize,
     /// Current formatting skip mode
@@ -168,15 +238,6 @@ pub struct Serializer<'a> {
     /// The list depth when entering the current blockquote.
     /// Used to determine if a list exists inside vs outside the blockquote.
     pub blockquote_entry_list_depth: usize,
-    /// Whether we're currently collecting footnote content.
-    /// When true, reference links are added to pending_footnote_references instead.
-    pub collecting_footnote_content: bool,
-    /// The reference line of the footnote currently being collected.
-    /// Used to associate references with their parent footnote's timing.
-    pub current_footnote_reference_line: usize,
-    /// Reference links collected from within footnote definitions.
-    /// Value is (ReferenceLink, footnote_reference_line) to track when to flush.
-    pub pending_footnote_references: IndexMap<String, (ReferenceLink, usize)>,
 }
 
 impl<'a> Serializer<'a> {
@@ -196,9 +257,7 @@ impl<'a> Serializer<'a> {
             blockquote_prefix: String::new(),
             pending_references: IndexMap::new(),
             emitted_references: std::collections::HashSet::new(),
-            pending_footnotes: IndexMap::new(),
-            emitted_footnotes: std::collections::HashSet::new(),
-            footnote_reference_lines: std::collections::HashMap::new(),
+            footnotes: FootnoteSet::new(),
             list_depth: 0,
             skip_mode: FormatSkipMode::None,
             in_description_details: false,
@@ -208,9 +267,6 @@ impl<'a> Serializer<'a> {
             list_item_indent: String::new(),
             blockquote_outer_indent: String::new(),
             blockquote_entry_list_depth: 0,
-            collecting_footnote_content: false,
-            current_footnote_reference_line: 0,
-            pending_footnote_references: IndexMap::new(),
         }
     }
 
@@ -307,9 +363,8 @@ impl<'a> Serializer<'a> {
             url,
             title,
         };
-        if self.collecting_footnote_content {
-            self.pending_footnote_references
-                .insert(label, (reference, self.current_footnote_reference_line));
+        if self.footnotes.collecting_content {
+            self.footnotes.add_reference(label, reference);
         } else {
             self.pending_references.insert(label, reference);
         }

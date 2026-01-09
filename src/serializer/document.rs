@@ -468,13 +468,12 @@ impl<'a> Serializer<'a> {
 
     /// Recursively collect footnote reference lines from the AST.
     /// This must be called before processing the document to ensure
-    /// footnote_reference_lines is populated for all footnotes.
+    /// footnote reference lines are populated for all footnotes.
     fn collect_footnote_reference_lines<'b>(&mut self, node: &'b AstNode<'b>) {
         if let NodeValue::FootnoteReference(footnote_ref) = &node.data.borrow().value {
             let ref_line = node.data.borrow().sourcepos.start.line;
-            self.footnote_reference_lines
-                .entry(footnote_ref.name.clone())
-                .or_insert(ref_line);
+            self.footnotes
+                .record_reference_line(footnote_ref.name.clone(), ref_line);
         }
         for child in node.children() {
             self.collect_footnote_reference_lines(child);
