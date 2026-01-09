@@ -15,7 +15,8 @@ pub fn wrap_text(text: &str, prefix: &str, line_width: usize) -> String {
         return wrap_single_segment(text, prefix, prefix, line_width);
     }
 
-    // Process lines: keep short lines as-is, merge and rewrap long lines
+    // Process lines: keep short lines as-is until we hit a long line,
+    // then merge everything from that point onward and rewrap
     let mut result = String::new();
     let mut i = 0;
 
@@ -32,49 +33,14 @@ pub fn wrap_text(text: &str, prefix: &str, line_width: usize) -> String {
             result.push_str(line);
             i += 1;
         } else {
-            // Line exceeds limit, merge with following lines and rewrap
+            // Line exceeds limit, merge ALL remaining lines and rewrap
             let mut merged = String::from(line);
-
-            // Keep merging until we reach a clean break point
             i += 1;
             while i < original_lines.len() {
                 let next_line = original_lines[i].trim();
                 merged.push(' ');
                 merged.push_str(next_line);
                 i += 1;
-
-                // Check if we can cleanly stop here
-                if i >= original_lines.len() {
-                    // No more lines, done merging
-                    break;
-                }
-
-                let wrapped = wrap_single_segment(&merged, prefix, prefix, line_width);
-                if let Some(last_line) = wrapped.lines().last() {
-                    // Don't break if the last wrapped line is very short (orphan prevention)
-                    // A line is considered "orphaned" if it's shorter than ~20% of line_width
-                    // or just contains a single short word
-                    let last_line_content =
-                        last_line.trim_start_matches(prefix.chars().collect::<Vec<_>>().as_slice());
-                    let last_line_words: Vec<&str> = last_line_content.split_whitespace().collect();
-
-                    let is_orphan =
-                        last_line_words.len() == 1 && last_line_content.len() < line_width / 4;
-
-                    if is_orphan {
-                        // Last line is orphaned, keep merging
-                        continue;
-                    }
-
-                    let next_original = original_lines[i].trim();
-                    let next_line_with_prefix = prefix.len() + next_original.len();
-
-                    if next_line_with_prefix <= line_width {
-                        // Next line fits on its own, safe to break
-                        break;
-                    }
-                    // Next line doesn't fit, keep merging
-                }
             }
 
             // Wrap the merged content
@@ -108,7 +74,8 @@ pub fn wrap_text_first_line(
         return wrap_single_segment(text, first_prefix, continuation_prefix, line_width);
     }
 
-    // Process lines: keep short lines as-is, merge and rewrap long lines
+    // Process lines: keep short lines as-is until we hit a long line,
+    // then merge everything from that point onward and rewrap
     let mut result = String::new();
     let mut i = 0;
     let mut is_first_line = true;
@@ -132,51 +99,14 @@ pub fn wrap_text_first_line(
             is_first_line = false;
             i += 1;
         } else {
-            // Line exceeds limit, merge with following lines and rewrap
+            // Line exceeds limit, merge ALL remaining lines and rewrap
             let mut merged = String::from(line);
-
             i += 1;
             while i < original_lines.len() {
                 let next_line = original_lines[i].trim();
                 merged.push(' ');
                 merged.push_str(next_line);
                 i += 1;
-
-                // Check if we can cleanly stop here
-                if i >= original_lines.len() {
-                    // No more lines, done merging
-                    break;
-                }
-
-                let test_prefix = if is_first_line {
-                    first_prefix
-                } else {
-                    continuation_prefix
-                };
-                let wrapped =
-                    wrap_single_segment(&merged, test_prefix, continuation_prefix, line_width);
-                if let Some(last_line) = wrapped.lines().last() {
-                    // Don't break if the last wrapped line is very short (orphan prevention)
-                    let last_line_content = last_line.trim();
-                    let last_line_words: Vec<&str> = last_line_content.split_whitespace().collect();
-
-                    let is_orphan =
-                        last_line_words.len() == 1 && last_line_content.len() < line_width / 4;
-
-                    if is_orphan {
-                        // Last line is orphaned, keep merging
-                        continue;
-                    }
-
-                    let next_original = original_lines[i].trim();
-                    let next_line_with_prefix = continuation_prefix.len() + next_original.len();
-
-                    if next_line_with_prefix <= line_width {
-                        // Next line fits on its own, safe to break
-                        break;
-                    }
-                    // Next line doesn't fit, keep merging
-                }
             }
 
             // Wrap the merged content
