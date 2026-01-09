@@ -2977,3 +2977,62 @@ fn test_multiline_code_span_in_list_item() {
         result
     );
 }
+
+#[test]
+fn test_code_block_empty_line_in_blockquote() {
+    let input = "> Here is a code block with an empty line:
+>
+> ~~~~ python
+> def example_function():
+>
+>     print(\"Hello, World!\")
+> ~~~~
+";
+    let result = parse_and_serialize(input);
+    // Empty lines inside code blocks within blockquotes should be just ">"
+    // without a trailing space
+    assert_eq!(
+        result,
+        "> Here is a code block with an empty line:
+>
+> ~~~~ python
+> def example_function():
+>
+>     print(\"Hello, World!\")
+> ~~~~
+"
+    );
+}
+
+#[test]
+fn test_code_block_empty_line_in_definition_list() {
+    let input = "Foo
+:   The following is a code block with an empty line.
+
+    ~~~~ python
+    print(\"Hello\")
+
+    print(\"world\")
+    ~~~~
+
+Bar
+:   Another definition.
+";
+    let result = parse_and_serialize(input);
+    // Empty lines inside code blocks within definition lists should have no indentation
+    assert_eq!(
+        result,
+        "Foo
+:   The following is a code block with an empty line.
+
+    ~~~~ python
+    print(\"Hello\")
+
+    print(\"world\")
+    ~~~~
+
+Bar
+:   Another definition.
+"
+    );
+}

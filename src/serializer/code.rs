@@ -24,10 +24,12 @@ impl<'a> Serializer<'a> {
             self.output.push_str(&code.info);
         }
         self.output.push('\n');
-        // Add indent to each line of code
+        // Add indent to each line of code (skip indent for empty lines)
         for line in code.literal.lines() {
-            self.output.push_str(indent);
-            self.output.push_str(line);
+            if !line.is_empty() {
+                self.output.push_str(indent);
+                self.output.push_str(line);
+            }
             self.output.push('\n');
         }
         // Handle trailing newline in literal
@@ -85,7 +87,11 @@ impl<'a> Serializer<'a> {
         // Content lines
         for line in literal.lines() {
             if self.in_block_quote {
-                self.output.push_str("> ");
+                if line.is_empty() {
+                    self.output.push('>');
+                } else {
+                    self.output.push_str("> ");
+                }
             }
             self.output.push_str(line);
             self.output.push('\n');
