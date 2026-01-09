@@ -280,6 +280,8 @@ impl<'a> Serializer<'a> {
     /// When comrak parses text like `node\_modules`, it stores `node_modules` in the AST.
     /// This function compares the parsed text with the original source to detect which
     /// characters were escaped, and preserves those escapes in the output.
+    ///
+    /// Also preserves HTML entities (e.g., `&lt;`, `&amp;`, `&#60;`) from the source.
     fn escape_text_preserving_source(text: &str, source: &str) -> String {
         let mut result = String::with_capacity(source.len());
         let text_chars: Vec<char> = text.chars().collect();
@@ -308,13 +310,37 @@ impl<'a> Serializer<'a> {
                     text_idx += 1;
                     // Don't advance source_idx - the escape might be for something else
                 }
+            } else if source_char == '&' {
+                // Check for HTML entity
+                if let Some((entity, decoded_char)) =
+                    Self::try_parse_html_entity(&source_chars, source_idx)
+                {
+                    if decoded_char == text_char {
+                        // The entity decodes to this character - preserve the entity
+                        result.push_str(&entity);
+                        text_idx += 1;
+                        source_idx += entity.len();
+                    } else {
+                        // Entity doesn't match the text character - use normal escaping
+                        result.push_str(&escape::escape_text(&text_char.to_string()));
+                        text_idx += 1;
+                    }
+                } else if source_char == text_char {
+                    // Not an entity, just a regular '&'
+                    result.push_str(&escape::escape_text(&text_char.to_string()));
+                    text_idx += 1;
+                    source_idx += 1;
+                } else {
+                    // Characters don't match - skip source character
+                    source_idx += 1;
+                }
             } else if source_char == text_char {
                 // Characters match - apply normal escaping rules
                 result.push_str(&escape::escape_text(&text_char.to_string()));
                 text_idx += 1;
                 source_idx += 1;
             } else {
-                // Characters don't match - source might have extra content (e.g., HTML entities)
+                // Characters don't match - source might have extra content
                 // Skip the source character and try again
                 source_idx += 1;
             }
@@ -326,5 +352,71 @@ impl<'a> Serializer<'a> {
         }
 
         result
+    }
+
+    /// Try to parse an HTML entity starting at the given position.
+    /// Returns the entity string and the decoded character if successful.
+    fn try_parse_html_entity(chars: &[char], start: usize) -> Option<(String, char)> {
+        if start >= chars.len() || chars[start] != '&' {
+            return None;
+        }
+
+        // Find the end of the entity (semicolon)
+        let mut end = start + 1;
+        while end < chars.len() && end - start < 12 {
+            // Max entity length ~10 chars
+            if chars[end] == ';' {
+                let entity: String = chars[start..=end].iter().collect();
+                if let Some(decoded) = Self::decode_html_entity(&entity) {
+                    return Some((entity, decoded));
+                }
+                return None;
+            }
+            if !chars[end].is_ascii_alphanumeric() && chars[end] != '#' {
+                return None;
+            }
+            end += 1;
+        }
+
+        None
+    }
+
+    /// Decode a single HTML entity to its character.
+    fn decode_html_entity(entity: &str) -> Option<char> {
+        // Handle numeric entities
+        if entity.starts_with("&#") {
+            let inner = entity.trim_start_matches("&#").trim_end_matches(';');
+            if let Some(hex) = inner.strip_prefix('x').or_else(|| inner.strip_prefix('X')) {
+                // Hexadecimal: &#xNN;
+                u32::from_str_radix(hex, 16).ok().and_then(char::from_u32)
+            } else {
+                // Decimal: &#NN;
+                inner.parse::<u32>().ok().and_then(char::from_u32)
+            }
+        } else {
+            // Named entities - use html_escape's complete table
+            let name = entity
+                .trim_start_matches('&')
+                .trim_end_matches(';')
+                .as_bytes();
+            html_escape::NAMED_ENTITIES
+                .binary_search_by_key(&name, |(n, _)| n)
+                .ok()
+                .and_then(|idx| {
+                    let (_, value) = &html_escape::NAMED_ENTITIES[idx];
+                    // Most entities decode to a single character
+                    let mut chars = value.chars();
+                    let first = chars.next()?;
+                    // TODO: Some entities decode to multiple characters (e.g., &fj; -> "fj").
+                    // Currently we only handle single-character entities. To support
+                    // multi-character entities, the return type would need to change from
+                    // Option<char> to Option<&str> or similar, and callers would need updating.
+                    if chars.next().is_none() {
+                        Some(first)
+                    } else {
+                        None
+                    }
+                })
+        }
     }
 }

@@ -2581,3 +2581,57 @@ More content here.
         result
     );
 }
+
+#[test]
+fn test_preserve_html_entities() {
+    // HTML entities like &lt; and &gt; should be preserved, not decoded
+    let input = "HTML에는 &lt;strong&gt;태그 등 여러 가지 태그가 있습니다.";
+    let result = parse_and_serialize_with_source(input);
+    assert_eq!(
+        result,
+        "HTML에는 &lt;strong&gt;태그 등 여러 가지 태그가 있습니다.\n"
+    );
+}
+
+#[test]
+fn test_preserve_html_entity_amp() {
+    // &amp; should be preserved
+    let input = "Tom &amp; Jerry";
+    let result = parse_and_serialize_with_source(input);
+    assert_eq!(result, "Tom &amp; Jerry\n");
+}
+
+#[test]
+fn test_preserve_html_entity_nbsp() {
+    // &nbsp; should be preserved
+    let input = "Hello&nbsp;world";
+    let result = parse_and_serialize_with_source(input);
+    assert_eq!(result, "Hello&nbsp;world\n");
+}
+
+#[test]
+fn test_preserve_numeric_html_entity() {
+    // Numeric entities like &#60; should be preserved
+    let input = "Entity: &#60;tag&#62;";
+    let result = parse_and_serialize_with_source(input);
+    assert_eq!(result, "Entity: &#60;tag&#62;\n");
+}
+
+#[test]
+fn test_preserve_actual_html_tags() {
+    // Actual HTML tags should be kept as-is (not escaped)
+    let input = "HTML에는 <strong>태그 등</strong> 여러 가지 태그가 있습니다.";
+    let result = parse_and_serialize_with_source(input);
+    assert_eq!(
+        result,
+        "HTML에는 <strong>태그 등</strong> 여러 가지 태그가 있습니다.\n"
+    );
+}
+
+#[test]
+fn test_mixed_html_and_entities() {
+    // Mixed actual HTML and entities should both be preserved correctly
+    let input = "Use <code>&lt;div&gt;</code> for containers.";
+    let result = parse_and_serialize_with_source(input);
+    assert_eq!(result, "Use <code>&lt;div&gt;</code> for containers.\n");
+}
