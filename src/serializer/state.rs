@@ -152,6 +152,12 @@ pub struct Serializer<'a> {
     /// The list depth when entering the current blockquote.
     /// Used to determine if a list exists inside vs outside the blockquote.
     pub blockquote_entry_list_depth: usize,
+    /// Whether we're currently collecting footnote content.
+    /// When true, reference links are added to pending_footnote_references instead.
+    pub collecting_footnote_content: bool,
+    /// Reference links collected from within footnote definitions.
+    /// These are output after footnote definitions, not before.
+    pub pending_footnote_references: IndexMap<String, ReferenceLink>,
 }
 
 impl<'a> Serializer<'a> {
@@ -185,6 +191,8 @@ impl<'a> Serializer<'a> {
             list_item_indent: String::new(),
             blockquote_outer_indent: String::new(),
             blockquote_entry_list_depth: 0,
+            collecting_footnote_content: false,
+            pending_footnote_references: IndexMap::new(),
         }
     }
 
@@ -273,9 +281,18 @@ impl<'a> Serializer<'a> {
     }
 
     /// Add a reference link to the pending references.
+    /// If collecting_footnote_content is true, adds to pending_footnote_references instead.
     pub fn add_reference(&mut self, label: String, url: String, title: String) {
-        self.pending_references
-            .insert(label.clone(), ReferenceLink { label, url, title });
+        let reference = ReferenceLink {
+            label: label.clone(),
+            url,
+            title,
+        };
+        if self.collecting_footnote_content {
+            self.pending_footnote_references.insert(label, reference);
+        } else {
+            self.pending_references.insert(label, reference);
+        }
     }
 
     /// Check if a URL is external (starts with http:// or https://).

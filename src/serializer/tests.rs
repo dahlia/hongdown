@@ -2470,3 +2470,44 @@ fn test_nested_blockquote_with_definition_list() {
         result
     );
 }
+
+#[test]
+fn test_footnote_reference_definitions_stay_below_footnote() {
+    // When a footnote contains reference links, the reference definitions
+    // should remain below the footnote definition, not move above it.
+    // See: https://github.com/dahlia/hongdown/issues/XXX
+    let input = r#"Text
+====
+
+The text.[^1]
+Blocks are usually used for paragraphs.
+
+[^1]: More precisely, the `Text` type has two type parameters: the first one
+      is the type of the element: `"block"` or `"inline"`, and the second one
+      is [`TContextData`], the [Fedify context data].
+
+[`TContextData`]: https://fedify.dev/manual/federation#tcontextdata
+[Fedify context data]: https://fedify.dev/manual/context
+"#;
+    let result = parse_and_serialize(input);
+
+    // The footnote definition should come before the reference definitions
+    let footnote_pos = result.find("[^1]:").expect("footnote not found");
+    let ref1_pos = result
+        .find("[`TContextData`]:")
+        .expect("TContextData ref not found");
+    let ref2_pos = result
+        .find("[Fedify context data]:")
+        .expect("Fedify context data ref not found");
+
+    assert!(
+        footnote_pos < ref1_pos,
+        "Footnote should come before TContextData reference definition.\nGot:\n{}",
+        result
+    );
+    assert!(
+        footnote_pos < ref2_pos,
+        "Footnote should come before Fedify context data reference definition.\nGot:\n{}",
+        result
+    );
+}

@@ -294,6 +294,43 @@ impl<'a> Serializer<'a> {
         self.flush_footnotes_before(None);
     }
 
+    /// Output pending footnote reference definitions (references from within footnotes).
+    /// These are output after footnote definitions to maintain proper ordering.
+    fn flush_footnote_references(&mut self) {
+        if self.pending_footnote_references.is_empty() {
+            return;
+        }
+
+        // Take ownership of references to avoid borrow issues
+        // Filter out references that have already been emitted
+        let refs: Vec<ReferenceLink> = self
+            .pending_footnote_references
+            .values()
+            .filter(|r| !self.emitted_references.contains(&r.label))
+            .cloned()
+            .collect();
+        self.pending_footnote_references.clear();
+
+        if refs.is_empty() {
+            return;
+        }
+
+        // Add a blank line before references if not already present
+        if !self.output.ends_with("\n\n") {
+            if self.output.ends_with('\n') {
+                self.output.push('\n');
+            } else {
+                self.output.push_str("\n\n");
+            }
+        }
+
+        // Output all references in insertion order
+        for reference in &refs {
+            Self::write_reference(&mut self.output, reference);
+            self.emitted_references.insert(reference.label.clone());
+        }
+    }
+
     /// Write a single footnote definition to output, wrapping at 80 characters
     fn write_footnote(&mut self, footnote: &state::FootnoteDefinition) {
         let prefix = format!("[^{}]: ", footnote.name);
@@ -483,10 +520,13 @@ impl<'a> Serializer<'a> {
             }
             NodeValue::FootnoteDefinition(footnote_def) => {
                 // Collect content from children
+                // Set flag so references within footnotes go to pending_footnote_references
+                self.collecting_footnote_content = true;
                 let mut content = String::new();
                 for child in node.children() {
                     self.collect_inline_node(child, &mut content);
                 }
+                self.collecting_footnote_content = false;
                 // Use the reference line (where footnote was used), not definition line
                 let reference_line = self
                     .footnote_reference_lines

@@ -174,6 +174,7 @@ impl<'a> Serializer<'a> {
 
         self.flush_references();
         self.flush_footnotes();
+        self.flush_footnote_references();
 
         // Output trailing HTML blocks after references and footnotes
         self.output_trailing_html_blocks(&children, trailing_html_start);
