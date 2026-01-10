@@ -27,6 +27,13 @@ This philosophy leads to several practical implications:
  -  *Reference-style links*: Keep prose readable by moving URLs out of the
     text flow.
 
+This style prioritizes reading over writing.  Many rules are tedious to follow
+manually—and that's intentional.  The assumption is that you'll use an
+automated formatter like [Hongdown] to handle the mechanical work, freeing you
+to focus on content rather than formatting details.
+
+[Hongdown]: https://github.com/dahlia/hongdown
+
 
 Headings
 --------
