@@ -44,6 +44,12 @@ mise use -g github:dahlia/hongdown
 cargo install hongdown
 ~~~~
 
+### Nix
+
+~~~ bash
+nix run https://github.com/dahlia/hongdown
+~~~
+
 ### Pre-built binaries
 
 Pre-built binaries for Linux, macOS, and Windows are available on the
