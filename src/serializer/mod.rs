@@ -14,6 +14,7 @@ mod wrap;
 pub use state::{ReferenceLink, Serializer, Warning};
 
 use comrak::nodes::{AstNode, NodeValue};
+use unicode_width::UnicodeWidthStr;
 
 use crate::Options;
 
@@ -376,7 +377,7 @@ impl<'a> Serializer<'a> {
         let continuation_indent = " ".repeat(prefix.len());
 
         // Wrap content at 80 chars, accounting for prefix on first line
-        let first_line_width = 80 - prefix.len();
+        let first_line_width = 80 - prefix.width();
         let continuation_width = 80 - continuation_indent.len();
 
         // Replace SoftBreak marker (\x00) with space before processing
@@ -401,7 +402,7 @@ impl<'a> Serializer<'a> {
 
             if current_line.is_empty() {
                 current_line.push_str(word);
-            } else if current_line.len() + 1 + word.len() <= max_width {
+            } else if current_line.width() + 1 + word.width() <= max_width {
                 current_line.push(' ');
                 current_line.push_str(word);
             } else {

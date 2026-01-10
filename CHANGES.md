@@ -6,11 +6,17 @@ Version 0.2.0
 
 To be released.
 
+ -  Fixed text wrapping to use Unicode display width instead of byte length.
+    East Asian wide characters (Korean, Japanese, Chinese) are now correctly
+    counted as 2 columns, so text wraps at the correct visual position.
+    [[#3] by Lee Dogeon]
+
  -  Added support for directory arguments.  When a directory is passed as an
     argument, Hongdown now recursively finds all Markdown files (_\*.md_ and
     _\*.markdown_) within it.  [[#2]]
 
 [#2]: https://github.com/dahlia/hongdown/issues/2
+[#3]: https://github.com/dahlia/hongdown/pull/3
 
 
 Version 0.1.0

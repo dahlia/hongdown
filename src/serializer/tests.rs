@@ -3128,3 +3128,102 @@ fn test_serialize_table_fullwidth_center_alignment() {
     let lines: Vec<&str> = result.lines().collect();
     assert_eq!(lines.len(), 4, "Table should have 4 lines");
 }
+
+// =============================================================================
+// East Asian Wide Character Wrapping Tests
+// =============================================================================
+
+#[test]
+fn test_wrap_korean_text_at_display_width() {
+    // Korean characters are 2 display columns each
+    // "안녕하세요" = 5 chars * 2 cols = 10 display columns
+    // "안녕하세요 안녕하세요" = 10 + 1 + 10 = 21 display columns > 20
+    let input = "안녕하세요 안녕하세요 세계";
+    let result = parse_and_serialize_with_width(input, 20);
+    assert_eq!(
+        result,
+        r#"
+안녕하세요
+안녕하세요 세계
+"#
+        .trim_start_matches('\n')
+    );
+}
+
+#[test]
+fn test_wrap_mixed_ascii_korean() {
+    // "Hello" = 5 cols, "안녕" = 4 cols, "World" = 5 cols
+    let input = "Hello 안녕 World more text here";
+    let result = parse_and_serialize_with_width(input, 20);
+    assert_eq!(
+        result,
+        r#"
+Hello 안녕 World
+more text here
+"#
+        .trim_start_matches('\n')
+    );
+}
+
+#[test]
+fn test_wrap_japanese_text() {
+    // Japanese hiragana/katakana/kanji are also 2 display columns each
+    // Text with spaces to allow wrapping at word boundaries
+    let input = "これは 日本語の テストです 行の折り返しが 正しく動作する";
+    let result = parse_and_serialize_with_width(input, 30);
+    assert_eq!(
+        result,
+        r#"
+これは 日本語の テストです
+行の折り返しが 正しく動作する
+"#
+        .trim_start_matches('\n')
+    );
+}
+
+#[test]
+fn test_wrap_chinese_text() {
+    // Chinese characters are 2 display columns each
+    // Text with spaces to allow wrapping at word boundaries
+    let input = "这是 一个中文 测试 它应该在 正确的显示 宽度处换行";
+    let result = parse_and_serialize_with_width(input, 30);
+    assert_eq!(
+        result,
+        r#"
+这是 一个中文 测试 它应该在
+正确的显示 宽度处换行
+"#
+        .trim_start_matches('\n')
+    );
+}
+
+#[test]
+fn test_wrap_korean_in_list_item() {
+    // List item with Korean text that needs wrapping
+    // " -  " = 4 cols prefix
+    let input = " -  이것은 매우 긴 한국어 문장입니다 여러 줄로 나누어져야 합니다";
+    let result = parse_and_serialize_with_width(input, 40);
+    assert_eq!(
+        result,
+        r#"
+ -  이것은 매우 긴 한국어 문장입니다 여러
+    줄로 나누어져야 합니다
+"#
+        .trim_start_matches('\n')
+    );
+}
+
+#[test]
+fn test_korean_line_exactly_at_width_limit() {
+    // "가나다라마" = 5 chars * 2 cols = 10 display columns
+    // "가나다라마 바사아자" = 10 + 1 + 8 = 19 cols, fits in 20
+    let input = "가나다라마 바사아자";
+    let result = parse_and_serialize_with_width(input, 20);
+    assert_eq!(
+        result,
+        r#"
+가나다라마 바사아자
+"#
+        .trim_start_matches('\n')
+    );
+}

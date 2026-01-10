@@ -1,5 +1,7 @@
 //! Text wrapping utilities for Markdown serialization.
 
+use unicode_width::UnicodeWidthStr;
+
 /// Wrap text at the specified line width.
 ///
 /// This function handles soft break markers (`\x00`) which represent where
@@ -52,7 +54,7 @@ fn wrap_text_segment(text: &str, prefix: &str, line_width: usize) -> String {
 
     while i < original_lines.len() {
         let line = original_lines[i].trim();
-        let line_with_prefix_len = prefix.len() + line.len();
+        let line_with_prefix_len = prefix.width() + line.width();
 
         if line_with_prefix_len <= line_width {
             // Line fits within limit, keep it as-is
@@ -159,7 +161,7 @@ fn wrap_text_first_line_segment(
         } else {
             continuation_prefix
         };
-        let line_with_prefix_len = current_prefix.len() + line.len();
+        let line_with_prefix_len = current_prefix.width() + line.width();
 
         if line_with_prefix_len <= line_width {
             // Line fits within limit, keep it as-is
@@ -209,7 +211,7 @@ pub fn wrap_single_segment(
     let mut result = String::new();
     let mut current_line = String::new();
     let mut is_first_line = true;
-    let first_prefix_len = first_prefix.len();
+    let first_prefix_width = first_prefix.width();
 
     // Add prefix to first line
     current_line.push_str(first_prefix);
@@ -240,7 +242,7 @@ pub fn wrap_single_segment(
                         &mut current_line,
                         &current_token,
                         &trailing_spaces,
-                        first_prefix_len,
+                        first_prefix_width,
                         prefix,
                         line_width,
                         &mut is_first_line,
@@ -263,7 +265,7 @@ pub fn wrap_single_segment(
                     &mut current_line,
                     &current_token,
                     &trailing_spaces,
-                    first_prefix_len,
+                    first_prefix_width,
                     prefix,
                     line_width,
                     &mut is_first_line,
@@ -291,7 +293,7 @@ pub fn wrap_single_segment(
                     &mut current_line,
                     &current_token,
                     &trailing_spaces,
-                    first_prefix_len,
+                    first_prefix_width,
                     prefix,
                     line_width,
                     &mut is_first_line,
@@ -310,7 +312,7 @@ pub fn wrap_single_segment(
             &mut current_line,
             &current_token,
             "",
-            first_prefix_len,
+            first_prefix_width,
             prefix,
             line_width,
             &mut is_first_line,
@@ -332,24 +334,24 @@ fn add_token_to_line_with_prefix(
     current_line: &mut String,
     token: &str,
     trailing_spaces: &str,
-    first_prefix_len: usize,
+    first_prefix_width: usize,
     prefix: &str,
     line_width: usize,
     is_first_line: &mut bool,
 ) {
-    let token_len = token.len();
+    let token_width = token.width();
     let spaces_len = trailing_spaces.len();
-    let current_prefix_len = if *is_first_line {
-        first_prefix_len
+    let current_prefix_width = if *is_first_line {
+        first_prefix_width
     } else {
-        prefix.len()
+        prefix.width()
     };
 
-    if current_line.len() == current_prefix_len {
+    if current_line.width() == current_prefix_width {
         // First word on this line (prefix already added)
         current_line.push_str(token);
         current_line.push_str(trailing_spaces);
-    } else if current_line.len() + token_len + spaces_len <= line_width {
+    } else if current_line.width() + token_width + spaces_len <= line_width {
         // Token fits on current line
         current_line.push_str(token);
         current_line.push_str(trailing_spaces);
