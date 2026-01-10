@@ -320,4 +320,50 @@ mod cli_tests {
             stdout
         );
     }
+
+    /// Test that running hongdown without files and without --stdin fails.
+    #[test]
+    fn test_no_input_error() {
+        use tempfile::TempDir;
+
+        // Create a temporary directory without .hongdown.toml
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+
+        let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_hongdown"));
+        cmd.current_dir(temp_dir.path());
+        cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::piped());
+
+        let output = cmd.output().expect("Failed to run hongdown");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let exit_code = output.status.code().unwrap_or(-1);
+
+        // Should fail with error about missing input
+        assert_ne!(exit_code, 0, "Should exit with error code");
+        assert!(
+            stderr.contains("no input files") || stderr.contains("No input"),
+            "Error message should mention missing input files: got stderr: {}",
+            stderr
+        );
+    }
+
+    /// Test that --stdin explicitly allows stdin input.
+    #[test]
+    fn test_stdin_flag_works() {
+        let input = "# Test\n\nParagraph.";
+        let (stdout, _stderr, exit_code) = run_hongdown(&["--stdin"], Some(input));
+
+        assert_eq!(exit_code, 0);
+        assert!(stdout.contains("Test\n===="));
+    }
+
+    /// Test that `-` explicitly allows stdin input.
+    #[test]
+    fn test_dash_for_stdin() {
+        let input = "# Test\n\nParagraph.";
+        let (stdout, _stderr, exit_code) = run_hongdown(&["-"], Some(input));
+
+        assert_eq!(exit_code, 0);
+        assert!(stdout.contains("Test\n===="));
+    }
 }

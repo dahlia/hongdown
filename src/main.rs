@@ -17,7 +17,7 @@ use similar::{ChangeTag, TextDiff};
 #[command(name = "hongdown")]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// Input file(s) to format. Use - for stdin.
+    /// Input file(s) to format. Use `-` to read from stdin.
     #[arg(value_name = "FILE")]
     files: Vec<PathBuf>,
 
@@ -33,7 +33,7 @@ struct Args {
     #[arg(short, long, conflicts_with_all = ["write", "check"])]
     diff: bool,
 
-    /// Read input from stdin.
+    /// Read input from stdin (alternative to using `-` as filename).
     #[arg(long)]
     stdin: bool,
 
@@ -82,9 +82,12 @@ fn main() -> ExitCode {
         );
     }
 
+    // Check if stdin is explicitly requested via --stdin or `-` as filename
+    let stdin_requested = args.stdin || args.files.iter().any(|f| f.to_str() == Some("-"));
+
     // Determine files to process
-    let files: Vec<PathBuf> = if args.files.is_empty() && !args.stdin {
-        // No files specified, try to use include patterns from config
+    let files: Vec<PathBuf> = if args.files.is_empty() && !stdin_requested {
+        // No files specified and stdin not requested, try to use include patterns from config
         if !config.include.is_empty() {
             match config.collect_files(&config_dir) {
                 Ok(collected) => collected,
@@ -94,13 +97,24 @@ fn main() -> ExitCode {
                 }
             }
         } else {
-            Vec::new()
+            // No files, no stdin, no include patterns - error
+            eprintln!("Error: no input files specified.");
+            eprintln!("Use `hongdown --stdin` or `hongdown -` to read from stdin,");
+            eprintln!("or specify file paths as arguments.");
+            return ExitCode::FAILURE;
         }
+    } else if stdin_requested {
+        // Filter out `-` from files list since we'll handle stdin separately
+        args.files
+            .iter()
+            .filter(|f| f.to_str() != Some("-"))
+            .cloned()
+            .collect()
     } else {
         args.files.clone()
     };
 
-    if args.stdin || files.is_empty() {
+    if stdin_requested {
         // Read from stdin
         let mut input = String::new();
         if let Err(e) = io::stdin().read_to_string(&mut input) {

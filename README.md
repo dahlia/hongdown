@@ -76,9 +76,11 @@ hongdown -c input.md
 hongdown --diff input.md
 hongdown -d input.md
 
-# Read from stdin
-echo "# Hello" | hongdown
+# Read from stdin (use --stdin flag or - as filename)
+echo "# Hello" | hongdown --stdin
+echo "# Hello" | hongdown -
 hongdown --stdin < input.md
+hongdown - < input.md
 
 # Custom line width
 hongdown --line-width 100 input.md
