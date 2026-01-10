@@ -22,6 +22,10 @@
           config.allowUnfree = true;
         };
         rust = pkgs.rust-bin.stable.latest.default;
+
+        # Parse the current package version directly from the `Cargo.toml` file.
+        cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+        inherit (cargoToml.package) version;
       in {
         # Run `nix develop` to get a reproducible dev shell
         devShells.default = pkgs.mkShell {
@@ -30,7 +34,7 @@
         # Build nix packages with `nix build`
         packages = rec {
           default = hongdown;
-          hongdown = pkgs.callPackage ./nix/hongdown.nix {};
+          hongdown = pkgs.callPackage ./nix/hongdown.nix {inherit version;};
         };
         # Run the program with `nix run`
         apps.default = flake-utils.lib.mkApp {

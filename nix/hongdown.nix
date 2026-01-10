@@ -1,11 +1,12 @@
 {
   lib,
   rustPlatform,
+  version,
   ...
 }:
 rustPlatform.buildRustPackage {
   name = "hongdown";
-  version = "0.1.0";
+  inherit version;
 
   src = ./..;
   cargoLock.lockFile = ../Cargo.lock;
