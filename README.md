@@ -35,7 +35,7 @@ npm install -g hongdown
 ### mise
 
 ~~~~ bash
-mise use github:dahlia/hongdown
+mise use -g github:dahlia/hongdown
 ~~~~
 
 ### Cargo
