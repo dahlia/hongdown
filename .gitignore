@@ -1,2 +1,4 @@
 /.claude/settings.local.json
 /target
+# `nix build` symlink
+result
