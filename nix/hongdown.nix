@@ -7,7 +7,6 @@
 rustPlatform.buildRustPackage rec {
   name = "hongdown";
   version = "0.1.0";
-  description = "A Markdown formatter that enforces Hong Minhee's Markdown style conventions";
 
   src = fetchFromGitHub {
     owner = "dahlia";
@@ -18,7 +17,7 @@ rustPlatform.buildRustPackage rec {
   useFetchCargoVendor = true;
   cargoHash = "sha256-lV+lPM/AAnhvoekR5iEWbes9aShqTbkDCJSw56eqUgI=";
   meta = {
-    description = "Check for outdated dependencies in a cargo workspace";
+    description = "A Markdown formatter that enforces Hong Minhee's Markdown style conventions";
     mainProgram = "hongdown";
     homepage = "https://github.com/dahlia/hongdown";
     license = lib.licenses.gpl3;
