@@ -398,7 +398,7 @@ jobs:
         EOF
 
           # Extract binary from archive
-          archive="../artifacts/hongdown-$VERSION-$rust_target"
+          archive="../../artifacts/hongdown-$VERSION-$rust_target"
           if [[ "$os" == "win32" ]]; then
             unzip -q "${archive}.zip" -d "$npm_pkg/"
             mv "$npm_pkg/hongdown-$rust_target/hongdown.exe" "$npm_pkg/bin/"
@@ -489,7 +489,7 @@ jobs:
         cd packages/wasm
 
         # Install dependencies for prepublishOnly script
-        pnpm install --frozen-lockfile
+        pnpm install --no-frozen-lockfile
 
         # Determine tag for dev versions
         if [[ "$VERSION" == *"-dev."* ]]; then
