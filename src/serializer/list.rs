@@ -213,14 +213,14 @@ impl<'a> Serializer<'a> {
                 NodeValue::Paragraph => {
                     // For paragraphs after the first, add blank line with proper indentation
                     if !is_first {
-                        // Check if previous child was a code block (which already ends with \n)
-                        let prev_was_code_block = i > 0
+                        // Check if previous child ends with a newline (code blocks, nested lists)
+                        let prev_ends_with_newline = i > 0
                             && matches!(
                                 &children[i - 1].data.borrow().value,
-                                NodeValue::CodeBlock(_)
+                                NodeValue::CodeBlock(_) | NodeValue::List(_)
                             );
-                        if prev_was_code_block {
-                            // Code block already ends with \n, so just add one more \n
+                        if prev_ends_with_newline {
+                            // Previous element already ends with \n, so just add one more \n
                             self.output.push('\n');
                         } else {
                             // First \n ends the previous paragraph, second \n creates blank line

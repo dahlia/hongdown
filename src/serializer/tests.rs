@@ -3559,3 +3559,27 @@ fn test_punctuation_single_hyphen_em_dash_without_spaces() {
     // Hyphen should remain because it's not surrounded by spaces
     assert_eq!(result, "word-word\n");
 }
+
+#[test]
+fn test_nested_list_followed_by_paragraph_no_extra_blank_line() {
+    // Regression test: When a list item contains a nested list followed by a paragraph,
+    // there should be exactly one blank line between them, not two.
+    let input = " -  Foo bar.
+
+     -  Baz.
+     -  Qux.
+
+    Quux.
+
+ -  Another item.
+";
+    let result = parse_and_serialize(input);
+    // There should be only one blank line between the nested list and "Quux."
+    // (i.e., "\n\n    Quux", not "\n\n\n    Quux")
+    assert!(
+        !result.contains("\n\n\n"),
+        "Should not have double blank lines between nested list and following paragraph.\nGot:\n{}",
+        result
+    );
+    assert_eq!(result, input, "Output should match input exactly");
+}

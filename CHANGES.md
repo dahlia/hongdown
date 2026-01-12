@@ -17,7 +17,6 @@ To be released.
      -  `en_dash`: Convert pattern to `–` (default: disabled)
      -  `em_dash`: Convert `--` to `—` (default: `"--"`)
 
-
     Code spans and fenced code blocks are never transformed.
 
  -  Fixed Setext-style heading underlines to match the display width of the
@@ -36,6 +35,15 @@ To be released.
 [#2]: https://github.com/dahlia/hongdown/issues/2
 [#3]: https://github.com/dahlia/hongdown/pull/3
 [#5]: https://github.com/dahlia/hongdown/pull/5
+
+
+Version 0.1.1
+-------------
+
+Released on January 12, 2026.
+
+ -  Fixed a bug where an extra blank line was added between a nested list and
+    a following paragraph within the same list item.
 
 
 Version 0.1.0
