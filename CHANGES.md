@@ -6,6 +6,10 @@ Version 0.2.0
 
 To be released.
 
+ -  Fixed Setext-style heading underlines to match the display width of the
+    heading text.  East Asian wide characters are now correctly counted as
+    2 columns.  [[#5] by Lee Dogeon]
+
  -  Fixed text wrapping to use Unicode display width instead of byte length.
     East Asian wide characters (Korean, Japanese, Chinese) are now correctly
     counted as 2 columns, so text wraps at the correct visual position.
@@ -17,6 +21,7 @@ To be released.
 
 [#2]: https://github.com/dahlia/hongdown/issues/2
 [#3]: https://github.com/dahlia/hongdown/pull/3
+[#5]: https://github.com/dahlia/hongdown/pull/5
 
 
 Version 0.1.0

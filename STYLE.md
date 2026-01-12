@@ -86,6 +86,11 @@ documentation.
 The underline of a Setext-style heading should match the display width of
 the heading text, accounting for East Asian wide characters.
 
+#### East Asian character width
+
+East Asian wide characters (CJK characters) are counted as two columns when
+calculating the display width.
+
 
 Emphasis
 --------

@@ -3227,3 +3227,38 @@ fn test_korean_line_exactly_at_width_limit() {
         .trim_start_matches('\n')
     );
 }
+
+// Setext Heading Display Width Tests
+// =============================================================================
+
+#[test]
+fn test_setext_h1_with_fullwidth_characters() {
+    // "한글 제목" = 4 wide chars (8 cols) + 1 space = 9 display columns
+    // Input has 5 chars (character count), output should have 9 (display width)
+    let input = "한글 제목\n=====\n";
+    let result = parse_and_serialize(input);
+    assert_eq!(
+        result,
+        r#"
+한글 제목
+=========
+"#
+        .trim_start_matches('\n')
+    );
+}
+
+#[test]
+fn test_setext_h2_with_fullwidth_characters() {
+    // "한글 제목" = 4 wide chars (8 cols) + 1 space = 9 display columns
+    // Input has 5 chars (character count), output should have 9 (display width)
+    let input = "한글 제목\n-----\n";
+    let result = parse_and_serialize(input);
+    assert_eq!(
+        result,
+        r#"
+한글 제목
+---------
+"#
+        .trim_start_matches('\n')
+    );
+}

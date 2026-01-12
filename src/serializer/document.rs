@@ -2,6 +2,7 @@
 
 use comrak::nodes::{AstNode, NodeValue};
 use regex::Regex;
+use unicode_width::UnicodeWidthStr;
 
 use super::Serializer;
 use super::state::{Directive, FormatSkipMode};
@@ -374,15 +375,13 @@ impl<'a> Serializer<'a> {
             // Setext-style with '='
             self.output.push_str(&heading_text);
             self.output.push('\n');
-            self.output
-                .push_str(&"=".repeat(heading_text.chars().count()));
+            self.output.push_str(&"=".repeat(heading_text.width()));
             self.output.push('\n');
         } else if level == 2 && self.options.setext_h2 {
             // Setext-style with '-'
             self.output.push_str(&heading_text);
             self.output.push('\n');
-            self.output
-                .push_str(&"-".repeat(heading_text.chars().count()));
+            self.output.push_str(&"-".repeat(heading_text.width()));
             self.output.push('\n');
         } else {
             // ATX-style for level 3+ or when setext is disabled
