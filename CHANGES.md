@@ -4,7 +4,7 @@ Hongdown changelog
 Version 0.1.1
 -------------
 
-To be released.
+Released on January 12, 2026.
 
  -  Fixed a bug where an extra blank line was added between a nested list and
     a following paragraph within the same list item.
