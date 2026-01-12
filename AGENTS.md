@@ -22,6 +22,7 @@ hongdown/
 │   ├── main.rs           # CLI entry point (clap-based argument parsing)
 │   ├── lib.rs            # Library entry point (Options, format functions)
 │   ├── config.rs         # Configuration file handling (.hongdown.toml)
+│   ├── wasm.rs           # WASM bindings (wasm-bindgen)
 │   └── serializer/       # Core formatting logic
 │       ├── mod.rs        # Main serializer module
 │       ├── state.rs      # Serializer state and types
@@ -37,7 +38,11 @@ hongdown/
 │       └── tests.rs      # Unit tests for serializer
 ├── tests/
 │   └── integration.rs    # Integration tests
-└── npm/                  # npm package distribution
+└── npm/
+    ├── package.json      # CLI npm package (hongdown)
+    └── wasm/             # WASM library package (@hongdown/wasm)
+        ├── src/          # TypeScript wrapper source
+        └── test/         # Tests for Node.js, Bun, Deno
 ~~~~
 
 
@@ -67,19 +72,31 @@ cargo build --release  # Release build
 
 ### Testing
 
+The recommended way to run all tests is using mise:
+
 ~~~~ bash
-cargo test                        # Run all tests
+mise run test              # Run all tests (Rust + WASM)
+mise run test:rust         # Run Rust tests only
+mise run test:wasm         # Run WASM package tests only
+~~~~
+
+You can also run Cargo tests directly:
+
+~~~~ bash
+cargo test                        # Run all Rust tests
 cargo test <name>                 # Run tests matching a name pattern
 cargo test serialize_table        # e.g., runs all table serialization tests
 cargo test -- --nocapture         # Show println! output
 cargo test -- --test-threads=1    # Run tests sequentially
 ~~~~
 
-Tests are located in two places:
+Tests are located in several places:
 
- -  *Unit tests*: *src/serializer/tests.rs* contains serializer tests
- -  *Integration tests*: *tests/integration.rs* contains CLI and full
+ -  *Rust unit tests*: *src/serializer/tests.rs* contains serializer tests
+ -  *Rust integration tests*: *tests/integration.rs* contains CLI and full
     document tests
+ -  *WASM package tests*: *npm/wasm/test/* contains tests that run on
+    Node.js, Bun, and Deno
 
 Test helper functions in *src/serializer/tests.rs*:
 

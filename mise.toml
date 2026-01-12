@@ -37,6 +37,19 @@ run = "cargo check"
 description = "Check Markdown formatting"
 run = "cargo run -- --check"
 
+[tasks.test]
+description = "Run all tests"
+depends = ["test:rust", "test:wasm"]
+
+[tasks."test:rust"]
+description = "Run Rust tests"
+run = "cargo test"
+
+[tasks."test:wasm"]
+description = "Run WASM package tests"
+depends = ["build:wasm"]
+run = "cd npm/wasm && npm run test"
+
 [tasks."build:wasm"]
 description = "Build WASM package"
 run = """
