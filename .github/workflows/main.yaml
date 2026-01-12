@@ -498,4 +498,4 @@ jobs:
           TAG=""
         fi
 
-        pnpm publish --access public --provenance $TAG
+        pnpm publish --access public --provenance --no-git-checks $TAG
