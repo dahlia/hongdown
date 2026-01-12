@@ -146,7 +146,7 @@ jobs:
         ARCHIVE_NAME="hongdown-$VERSION-${{ matrix.target }}"
         STAGING="hongdown-${{ matrix.target }}"
         mkdir -p "$STAGING"
-        cp LICENSE README.md STYLE.md "$STAGING/"
+        cp CHANGES.md LICENSE README.md STYLE.md "$STAGING/"
         if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
           cp "target/${{ matrix.target }}/release/hongdown.exe" "$STAGING/"
           7z a "$ARCHIVE_NAME.zip" "$STAGING"
