@@ -217,6 +217,19 @@ fn transform_single_quotes(text: &str) -> String {
                 }
             }
 
+            // Possessive after digits like 1.2.3's, 2024's
+            // These are apostrophes, not quotation marks - leave for apostrophe transform
+            if prev_char.is_some_and(|c| c.is_ascii_digit())
+                && next_char.is_some_and(|c| c == 's' || c == 'S')
+            {
+                // Check if it's actually possessive (s followed by non-letter)
+                let after_s = chars.get(i + 2);
+                if after_s.is_none() || after_s.is_some_and(|c| !c.is_alphabetic()) {
+                    result.push(ch);
+                    continue;
+                }
+            }
+
             // Leading possessive 's at text start (e.g., after a link in parsed Markdown)
             // This is an apostrophe, not a quotation mark - leave for apostrophe transform
             if prev_char.is_none() && next_char.is_some_and(|c| c == 's' || c == 'S') {

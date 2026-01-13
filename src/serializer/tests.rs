@@ -4296,3 +4296,32 @@ Cons
         result, second_pass
     );
 }
+
+#[test]
+fn test_possessive_apostrophe_after_digit_stays_straight() {
+    // Possessive apostrophe after a digit (like version number) should stay straight
+    // when curly_apostrophes is disabled (default)
+    let input = "Version 1.2.3's highlight.";
+    let result = parse_and_serialize(input);
+    assert_eq!(
+        result, "Version 1.2.3's highlight.\n",
+        "Apostrophe after digit should remain straight, got:\n{}",
+        result
+    );
+}
+
+#[test]
+fn test_possessive_apostrophe_after_digit_curly_when_enabled() {
+    // Possessive apostrophe after a digit should become curly
+    // when curly_apostrophes is enabled
+    let mut options = Options::default();
+    options.curly_apostrophes = true;
+    let input = "Version 1.2.3's highlight.";
+    let result = parse_and_serialize_with_options(input, &options);
+    let expected = format!("Version 1.2.3{}s highlight.\n", RIGHT_SINGLE_QUOTE);
+    assert_eq!(
+        result, expected,
+        "Apostrophe after digit should become curly when enabled, got:\n{}",
+        result
+    );
+}

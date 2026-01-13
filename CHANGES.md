@@ -7,6 +7,16 @@ Version 0.3.0
 To be released.
 
 
+Version 0.2.6
+-------------
+
+Released on January 14, 2026.
+
+ -  Fixed a bug where possessive apostrophes after digits (e.g., `1.2.3's`,
+    `2024's`) were incorrectly converted to curly apostrophes even when
+    `punctuation.curly_apostrophes` was set to `false` (the default).
+
+
 Version 0.2.5
 -------------
 
