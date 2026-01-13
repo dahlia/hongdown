@@ -621,6 +621,15 @@ fn process_word(
     user_proper_nouns: &[String],
     common_nouns: &[String],
 ) -> String {
+    // Check if the whole word (including hyphens/slashes) is a proper noun.
+    // This allows user-defined proper nouns like "@foo/javascript" or "my-custom-lib"
+    // to be preserved as-is without splitting.
+    if (word.contains('-') || word.contains('/'))
+        && let Some(canonical) = find_proper_noun(word, user_proper_nouns, common_nouns)
+    {
+        return canonical;
+    }
+
     // Handle hyphenated words
     if word.contains('-') {
         let parts: Vec<&str> = word.split('-').collect();
@@ -1543,6 +1552,61 @@ mod tests {
         assert_eq!(
             to_sentence_case("Python's Features And JavaScript's Benefits", &[], &[]),
             "Python's features and JavaScript's benefits"
+        );
+    }
+
+    #[test]
+    fn test_slash_containing_user_proper_noun() {
+        // User-defined proper noun containing slash should be preserved as-is
+        assert_eq!(
+            to_sentence_case(
+                "Using @foo/javascript Package",
+                &["@foo/javascript".to_string()],
+                &[]
+            ),
+            "Using @foo/javascript package"
+        );
+        // Multiple slash-containing proper nouns
+        assert_eq!(
+            to_sentence_case(
+                "Using @foo/bar And @baz/qux",
+                &["@foo/bar".to_string(), "@baz/qux".to_string()],
+                &[]
+            ),
+            "Using @foo/bar and @baz/qux"
+        );
+    }
+
+    #[test]
+    fn test_hyphen_containing_user_proper_noun() {
+        // User-defined proper noun containing hyphen should be preserved as-is
+        assert_eq!(
+            to_sentence_case(
+                "Using my-custom-lib Package",
+                &["my-custom-lib".to_string()],
+                &[]
+            ),
+            "Using my-custom-lib package"
+        );
+    }
+
+    #[test]
+    fn test_slash_proper_noun_not_matching_splits() {
+        // Without user proper noun, slash-separated words are processed independently
+        // "javascript" matches built-in "JavaScript"
+        assert_eq!(
+            to_sentence_case("Using @foo/javascript Package", &[], &[]),
+            "Using @foo/JavaScript package"
+        );
+    }
+
+    #[test]
+    fn test_hyphen_proper_noun_not_matching_splits() {
+        // Without user proper noun, hyphen-separated words are processed independently
+        // "javascript" matches built-in "JavaScript"
+        assert_eq!(
+            to_sentence_case("Using foo-javascript Package", &[], &[]),
+            "Using foo-JavaScript package"
         );
     }
 }

@@ -7,6 +7,17 @@ Version 0.3.0
 To be released.
 
 
+Version 0.2.1
+-------------
+
+Released on January 13, 2026.
+
+ -  Fixed an issue where `heading.proper_nouns` entries containing slashes
+    or hyphens (e.g., `@foo/javascript`, `my-custom-lib`) were not recognized
+    as proper nouns because the word was split before matching.  Now the
+    entire word is checked against user proper nouns before splitting.
+
+
 Version 0.2.0
 -------------
 
