@@ -4,7 +4,7 @@ Hongdown changelog
 Version 0.2.6
 -------------
 
-To be released.
+Released on January 14, 2026.
 
  -  Fixed a bug where possessive apostrophes after digits (e.g., `1.2.3's`,
     `2024's`) were incorrectly converted to curly apostrophes even when
