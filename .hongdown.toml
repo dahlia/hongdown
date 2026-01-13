@@ -1,4 +1,9 @@
-# Hongdown configuration file
-
 include = ["*.md", "**/*.md"]
 exclude = ["target/**", "**/node_modules/**", "demo/src/sample.md"]
+
+[heading]
+sentence_case = true
+proper_nouns = [
+  "Hong Minhee",
+  "mise",
+]
