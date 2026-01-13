@@ -479,6 +479,20 @@ null_ls.register(hongdown)
 [none-ls.nvim]: https://github.com/nvimtools/none-ls.nvim
 [Vladimir Rubin]: https://github.com/dahlia/hongdown/issues/4
 
+### Helix
+
+If you use [helix], you can register Hongdown as a formatter (contributed by [Jean Simard]):
+
+~~~~ toml
+[[language]]
+name = "markdown"
+auto-format = true
+formatter = { command = "hongdown", args = ["--stdin"] }
+~~~~
+
+[helix]: https://helix-editor.com/
+[Jean Simard]: https://github.com/dahlia/hongdown/issues/12
+
 
 Library usage
 -------------
