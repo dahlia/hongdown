@@ -498,6 +498,22 @@ fn process_word(
         return processed_parts.join("-");
     }
 
+    // Handle slash-separated words
+    if word.contains('/') {
+        let parts: Vec<&str> = word.split('/').collect();
+        let mut is_first_part = is_first;
+        let processed_parts: Vec<String> = parts
+            .into_iter()
+            .map(|part| {
+                let result =
+                    process_word_simple(part, is_first_part, user_proper_nouns, common_nouns);
+                is_first_part = false;
+                result
+            })
+            .collect();
+        return processed_parts.join("/");
+    }
+
     process_word_simple(word, is_first, user_proper_nouns, common_nouns)
 }
 
@@ -1231,6 +1247,32 @@ mod tests {
         assert_eq!(
             to_sentence_case("ROK And DPRK Summit", &[], &[]),
             "ROK and DPRK summit"
+        );
+    }
+
+    #[test]
+    fn test_slash_separated_words() {
+        // Words separated by slashes should be handled independently
+        assert_eq!(
+            to_sentence_case("Coding With JavaScript/TypeScript", &[], &[]),
+            "Coding with JavaScript/TypeScript"
+        );
+        assert_eq!(
+            to_sentence_case("Using Python/Ruby/Perl", &[], &[]),
+            "Using Python/Ruby/Perl"
+        );
+        assert_eq!(
+            to_sentence_case("Learning HTML/CSS/JavaScript", &[], &[]),
+            "Learning HTML/CSS/JavaScript"
+        );
+        // Slash-separated with custom proper nouns
+        assert_eq!(
+            to_sentence_case(
+                "Using Swift/Go",
+                &["Swift".to_string(), "Go".to_string()],
+                &[]
+            ),
+            "Using Swift/Go"
         );
     }
 }
