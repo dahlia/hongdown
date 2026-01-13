@@ -48,7 +48,7 @@ export const OptionsPanel: Component<OptionsPanelProps> = (props) => {
       </button>
 
       {isOpen() && (
-        <div class="p-6 flex flex-col gap-6 bg-neutral-50 dark:bg-neutral-900/50">
+        <div class="p-6 flex flex-col gap-6 bg-neutral-50 dark:bg-neutral-900/50 max-h-[60vh] overflow-y-auto">
           <div class="flex justify-end">
             <button
               class="btn btn-outline text-xs flex items-center gap-1"
