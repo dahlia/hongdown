@@ -259,12 +259,10 @@ mod cli_tests {
             .expect("Failed to write unformatted file");
 
         // Create a file that is already formatted
+        // Note: heading uses single word to avoid sentence case transformation
         let formatted_path = temp_dir.path().join("formatted.md");
-        fs::write(
-            &formatted_path,
-            "Already Formatted\n=================\n\nA paragraph.\n",
-        )
-        .expect("Failed to write formatted file");
+        fs::write(&formatted_path, "Formatted\n=========\n\nA paragraph.\n")
+            .expect("Failed to write formatted file");
 
         let (stdout, _stderr, exit_code) = run_hongdown(
             &[
