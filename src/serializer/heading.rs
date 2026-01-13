@@ -36,6 +36,7 @@ pub fn to_sentence_case(
         match token {
             Token::CodeSpan(content) => {
                 result.push_str(&content);
+                is_first_word = false;
             }
             Token::Quote(content, is_double) => {
                 let processed =
@@ -563,7 +564,8 @@ fn process_text(
             result.push(ch);
         } else {
             // Check if this is a delimiter that should trigger capitalization check
-            if ch == ':' || ch == ';' || ch == '—' {
+            // Including colon, semicolon, em dash (—), and en dash (–)
+            if ch == ':' || ch == ';' || ch == '—' || ch == '–' {
                 if !current_word.is_empty() {
                     let processed = process_word(
                         &current_word,
@@ -665,6 +667,38 @@ fn process_word(
     process_word_simple(word, is_first, user_proper_nouns, common_nouns)
 }
 
+/// Check if a word is or starts with the English first-person pronoun "I".
+/// Returns Some(canonical_form) if the word should preserve "I" capitalization.
+/// Handles: "I", "I'm", "I've", "I'll", "I'd", etc.
+fn is_first_person_pronoun_i(word: &str) -> Option<String> {
+    let chars: Vec<char> = word.chars().collect();
+    if chars.is_empty() {
+        return None;
+    }
+
+    // Check if the word is exactly "I" (case-insensitive)
+    if chars.len() == 1 && chars[0].eq_ignore_ascii_case(&'i') {
+        return Some("I".to_string());
+    }
+
+    // Check if the word starts with "I" followed by apostrophe (I'm, I've, I'll, I'd)
+    // Handle both straight apostrophe (') and curly apostrophe (')
+    if chars.len() >= 2
+        && chars[0].eq_ignore_ascii_case(&'i')
+        && (chars[1] == '\'' || chars[1] == '\u{2019}')
+    {
+        // Preserve "I" and keep the rest lowercase
+        let mut result = String::from("I");
+        result.push(chars[1]);
+        for ch in chars.iter().skip(2) {
+            result.push(ch.to_ascii_lowercase());
+        }
+        return Some(result);
+    }
+
+    None
+}
+
 /// Process a simple (non-hyphenated) word.
 fn process_word_simple(
     word: &str,
@@ -691,6 +725,11 @@ fn process_word_simple(
     // Check if it's an acronym (2+ consecutive uppercase letters at start)
     if is_acronym(word) {
         return word.to_string();
+    }
+
+    // Check if it's the English first-person pronoun "I" (always capitalized)
+    if let Some(canonical) = is_first_person_pronoun_i(word) {
+        return canonical;
     }
 
     // Check if it's a proper noun (excluding common_nouns)
@@ -1607,6 +1646,57 @@ mod tests {
         assert_eq!(
             to_sentence_case("Using foo-javascript Package", &[], &[]),
             "Using foo-JavaScript package"
+        );
+    }
+
+    #[test]
+    fn test_first_person_pronoun_i_always_capitalized() {
+        // English first-person pronoun "I" should always be capitalized
+        // regardless of position in the sentence
+
+        // "I" with apostrophe contractions (I'm, I've, I'll, I'd)
+        assert_eq!(
+            to_sentence_case("Because I'm Happy", &[], &[]),
+            "Because I'm happy"
+        );
+        assert_eq!(
+            to_sentence_case("Why I've Been Here", &[], &[]),
+            "Why I've been here"
+        );
+        assert_eq!(
+            to_sentence_case("What I'll Do Next", &[], &[]),
+            "What I'll do next"
+        );
+        assert_eq!(
+            to_sentence_case("How I'd Feel About It", &[], &[]),
+            "How I'd feel about it"
+        );
+
+        // Standalone "I" in various positions
+        assert_eq!(
+            to_sentence_case("What I Think About This", &[], &[]),
+            "What I think about this"
+        );
+        assert_eq!(to_sentence_case("Here I Am", &[], &[]), "Here I am");
+
+        // "I" after punctuation (en dash, em dash, colon)
+        assert_eq!(
+            to_sentence_case("Something–I Think So", &[], &[]),
+            "Something–I think so"
+        );
+        assert_eq!(
+            to_sentence_case("Note: I Believe This", &[], &[]),
+            "Note: I believe this"
+        );
+
+        // "I" at the beginning (should still work)
+        assert_eq!(
+            to_sentence_case("I'm Happy Today", &[], &[]),
+            "I'm happy today"
+        );
+        assert_eq!(
+            to_sentence_case("I Think Therefore I Am", &[], &[]),
+            "I think therefore I am"
         );
     }
 }

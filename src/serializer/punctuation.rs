@@ -204,6 +204,29 @@ fn transform_single_quotes(text: &str) -> String {
                 continue;
             }
 
+            // Possessive after closing brackets like [name]'s, (term)'s, {item}'s
+            // These are apostrophes, not quotation marks - leave for apostrophe transform
+            if prev_char.is_some_and(|c| c == ']' || c == ')' || c == '}')
+                && next_char.is_some_and(|c| c == 's' || c == 'S')
+            {
+                // Check if it's actually possessive (s followed by non-letter)
+                let after_s = chars.get(i + 2);
+                if after_s.is_none() || after_s.is_some_and(|c| !c.is_alphabetic()) {
+                    result.push(ch);
+                    continue;
+                }
+            }
+
+            // Leading possessive 's at text start (e.g., after a link in parsed Markdown)
+            // This is an apostrophe, not a quotation mark - leave for apostrophe transform
+            if prev_char.is_none() && next_char.is_some_and(|c| c == 's' || c == 'S') {
+                let after_s = chars.get(i + 2);
+                if after_s.is_none() || after_s.is_some_and(|c| !c.is_alphabetic()) {
+                    result.push(ch);
+                    continue;
+                }
+            }
+
             // Decade abbreviations like '80s - always closing/apostrophe style
             if next_char.is_some_and(|c| c.is_ascii_digit()) {
                 result.push(RIGHT_SINGLE_QUOTE);
@@ -290,6 +313,26 @@ fn transform_apostrophes(text: &str) -> String {
                     None
                 };
                 // Make sure it's actually possessive (s followed by non-letter)
+                if after_s.is_none() || after_s.is_some_and(|c| !c.is_alphabetic()) {
+                    result.push(RIGHT_SINGLE_QUOTE);
+                    continue;
+                }
+            }
+
+            // Possessive after closing brackets like [name]'s, (term)'s, {item}'s
+            if prev_char.is_some_and(|c| c == ']' || c == ')' || c == '}')
+                && next_char.is_some_and(|c| c == 's' || c == 'S')
+            {
+                let after_s = chars.get(i + 2);
+                if after_s.is_none() || after_s.is_some_and(|c| !c.is_alphabetic()) {
+                    result.push(RIGHT_SINGLE_QUOTE);
+                    continue;
+                }
+            }
+
+            // Leading possessive 's at text start (e.g., after a link in parsed Markdown)
+            if prev_char.is_none() && next_char.is_some_and(|c| c == 's' || c == 'S') {
+                let after_s = chars.get(i + 2);
                 if after_s.is_none() || after_s.is_some_and(|c| !c.is_alphabetic()) {
                     result.push(RIGHT_SINGLE_QUOTE);
                     continue;
@@ -626,6 +669,33 @@ mod tests {
     }
 
     #[test]
+    fn test_leading_apostrophe_s_stays_straight() {
+        // When text starts with 's (like after a link in parsed Markdown),
+        // it should stay straight when curly_apostrophes is disabled
+        let options = default_options();
+        assert!(!options.curly_apostrophes);
+
+        let result = transform_punctuation("'s API", &options);
+        assert_eq!(result, "'s API");
+    }
+
+    #[test]
+    fn test_leading_apostrophe_s_curly_when_enabled() {
+        // When curly_apostrophes is enabled, leading 's should become curly
+        let options = options_with(
+            true,
+            true,
+            true, // curly_apostrophes enabled
+            true,
+            DashSetting::Disabled,
+            DashSetting::Pattern("--".to_string()),
+        );
+
+        let result = transform_punctuation("'s API", &options);
+        assert_eq!(result, format!("{}s API", RIGHT_SINGLE_QUOTE));
+    }
+
+    #[test]
     fn test_curly_apostrophes_enabled() {
         let options = options_with(
             true,
@@ -855,6 +925,43 @@ mod tests {
         let options = default_options();
         let result = transform_punctuation("music from the '80s", &options);
         assert_eq!(result, format!("music from the {}80s", RIGHT_SINGLE_QUOTE));
+    }
+
+    #[test]
+    fn test_bracket_possessive_apostrophe_stays_straight() {
+        // Possessive apostrophe after closing bracket should stay straight
+        // when curly_apostrophes is disabled (default)
+        let options = default_options();
+        assert!(!options.curly_apostrophes); // Ensure default is false
+
+        // Square bracket
+        let result = transform_punctuation("[Fedify]'s API", &options);
+        assert_eq!(result, "[Fedify]'s API");
+
+        // Parenthesis
+        let result = transform_punctuation("(something)'s value", &options);
+        assert_eq!(result, "(something)'s value");
+
+        // Curly brace
+        let result = transform_punctuation("{item}'s property", &options);
+        assert_eq!(result, "{item}'s property");
+    }
+
+    #[test]
+    fn test_bracket_possessive_apostrophe_curly_when_enabled() {
+        // Possessive apostrophe after closing bracket should become curly
+        // when curly_apostrophes is enabled
+        let options = options_with(
+            true,
+            true,
+            true, // curly_apostrophes enabled
+            true,
+            DashSetting::Disabled,
+            DashSetting::Pattern("--".to_string()),
+        );
+
+        let result = transform_punctuation("[Fedify]'s API", &options);
+        assert_eq!(result, format!("[Fedify]{}s API", RIGHT_SINGLE_QUOTE));
     }
 
     // ========== Em-dash tests ==========

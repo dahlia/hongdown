@@ -7,6 +7,34 @@ Version 0.3.0
 To be released.
 
 
+Version 0.2.2
+-------------
+
+Released on January 13, 2026.
+
+ -  Fixed a bug where possessive apostrophes after link references (e.g.,
+    `[Fedify]'s`) were incorrectly converted to curly apostrophes even when
+    `punctuation.curly_apostrophes` was set to `false` (the default).
+
+ -  Fixed a bug where footnote definitions and link reference definitions
+    placed before `<!-- hongdown-disable -->` (or other disable directives)
+    were incorrectly moved below the directive.  The definitions now correctly
+    stay above the directive where they were originally placed.
+
+ -  Fixed a bug where headings starting with a code span (e.g.,
+    `` # `Foo` object ``) would incorrectly capitalize the word following
+    the code span when `heading.sentence_case` was enabled.  Now the code span
+    counts as the first word, so subsequent words are correctly lowercased.
+
+ -  Fixed a bug where the English first-person pronoun “I” was incorrectly
+    lowercased when `heading.sentence_case` was enabled.  The pronoun “I” and
+    its contractions (I'm, I've, I'll, I'd) are now always capitalized
+    regardless of their position in the heading.
+
+ -  Fixed en dash (–) handling in `heading.sentence_case` mode.  En dash is
+    now treated as a word delimiter like em dash (—), colon, and semicolon.
+
+
 Version 0.2.1
 -------------
 

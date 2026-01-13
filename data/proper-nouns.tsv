@@ -26,11 +26,13 @@ Bun
 Deno
 Express
 Gatsby
+NestJS
 Next.js
 Node.js
 Nuxt
 React
 Svelte
+SvelteKit
 Vue
 
 # Databases
@@ -42,7 +44,9 @@ MongoDB
 MySQL
 Neo4j
 Oracle
+Postgres
 PostgreSQL
+RabbitMQ
 Redis
 SQLite
 
@@ -491,6 +495,7 @@ Middle Eastern
 Oceania
 
 # Other technologies
+ActivityPub
 CSV
 CommonMark
 GraphQL
@@ -501,6 +506,7 @@ Markdown
 OAuth
 OpenID
 TOML
+Visual Studio Code
 WebSocket
 XML
 YAML
