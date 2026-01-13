@@ -741,8 +741,14 @@ fn test_definition_list_with_nested_list_continuation() {
     let input = "Term\n:   Definition:\n\n     -  Item with long text\n        that continues";
     let result = parse_and_serialize(input);
     // Continuation should also have proper indent
+    // List inside description details: `     -  ` = 5 spaces + `-` + 2 spaces = 8 chars
+    // So continuation lines should be indented with 8 spaces
     assert!(result.contains("     -  Item with long text"));
-    assert!(result.contains("         that continues"));
+    assert!(
+        result.contains("        that continues"),
+        "Continuation line should be indented with 8 spaces, got:\n{}",
+        result
+    );
 }
 
 #[test]
@@ -4252,5 +4258,41 @@ Cons
         first_pass, second_pass,
         "Formatting should be idempotent.\nFirst pass:\n{}\nSecond pass:\n{}",
         first_pass, second_pass
+    );
+}
+
+#[test]
+fn test_definition_list_with_list_continuation_line_indentation() {
+    // List item continuation lines inside definition details should align with the first line.
+    // The `:    -  ` prefix is 8 characters (`:` + 4 spaces + `-` + 2 spaces),
+    // so continuation lines should be indented 8 spaces (not 9).
+    let input = r#"Pros
+:    -  The actor URI is more predictable and human-readable,
+        which makes debugging easier.
+
+Cons
+:    -  Changing the WebFinger username may break the existing network.
+        Hence, the fediverse handle is immutable in practice.
+"#;
+    let result = parse_and_serialize(input);
+
+    // The continuation line should have exactly 8 spaces indentation
+    assert!(
+        result.contains(":    -  The actor URI is more predictable and human-readable,\n        which makes debugging easier."),
+        "Continuation line should be indented with 8 spaces to align with first line content, got:\n{}",
+        result
+    );
+    assert!(
+        result.contains(":    -  Changing the WebFinger username may break the existing network.\n        Hence, the fediverse handle is immutable in practice."),
+        "Continuation line should be indented with 8 spaces to align with first line content, got:\n{}",
+        result
+    );
+
+    // Verify idempotency
+    let second_pass = parse_and_serialize(&result);
+    assert_eq!(
+        result, second_pass,
+        "Formatting should be idempotent.\nFirst pass:\n{}\nSecond pass:\n{}",
+        result, second_pass
     );
 }

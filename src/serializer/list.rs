@@ -171,12 +171,29 @@ impl<'a> Serializer<'a> {
         // Calculate base indentation for continuation lines (paragraphs, code blocks, etc.)
         // This should match the marker width so content aligns properly
         let marker_width = self.calculate_marker_width();
+        // Inside description details at top-level, the marker has no leading space,
+        // so we need to use marker_width without leading_spaces for base_indent calculation.
+        let marker_width_for_indent = if self.in_description_details && self.list_depth == 1 {
+            match self.list_type {
+                Some(ListType::Bullet) => {
+                    // "-  " = 1 (marker) + trailing_spaces (no leading space)
+                    1 + self.options.trailing_spaces
+                }
+                Some(ListType::Ordered) => {
+                    // For ordered lists in description details, still use full width
+                    self.options.ordered_list_indent_width
+                }
+                None => 0,
+            }
+        } else {
+            marker_width
+        };
         let base_indent = if self.in_description_details {
             // Inside description details, add extra 5-space indent
             format!(
                 "{}{}",
                 " ".repeat(5 + indent_width * (self.list_depth - 1)),
-                " ".repeat(marker_width)
+                " ".repeat(marker_width_for_indent)
             )
         } else if self.list_depth > 1 {
             // Nested list: outer indent + marker width
