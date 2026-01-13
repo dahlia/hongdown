@@ -285,7 +285,7 @@ jobs:
       with:
         name: Hongdown ${{ github.ref_name }}
         body_path: ${{ steps.extract-changelog.outputs.output-file }}
-        files: artifacts/*
+        files: artifacts/hongdown-*
         generate_release_notes: false
 
   publish-cargo:
