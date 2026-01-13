@@ -10,6 +10,11 @@ To be released.
     `[Fedify]'s`) were incorrectly converted to curly apostrophes even when
     `punctuation.curly_apostrophes` was set to `false` (the default).
 
+ -  Fixed a bug where footnote definitions and link reference definitions
+    placed before `<!-- hongdown-disable -->` (or other disable directives)
+    were incorrectly moved below the directive.  The definitions now correctly
+    stay above the directive where they were originally placed.
+
 
 Version 0.2.1
 -------------

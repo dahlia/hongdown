@@ -49,6 +49,13 @@ impl<'a> Serializer<'a> {
             {
                 match directive {
                     Directive::DisableFile => {
+                        // Flush pending footnotes and references BEFORE the disable-file directive.
+                        // Definitions that appear before the directive should stay before it.
+                        let directive_line = child.data.borrow().sourcepos.start.line;
+                        self.flush_footnotes_before(Some(directive_line));
+                        self.flush_references();
+                        self.flush_footnote_references_before(Some(directive_line));
+
                         // Output the directive comment, then output remaining content as-is
                         self.output.push_str(html_block.literal.trim_end());
                         // Get the line after the directive block ends
@@ -63,6 +70,13 @@ impl<'a> Serializer<'a> {
                         return;
                     }
                     Directive::DisableNextLine => {
+                        // Flush pending footnotes and references BEFORE the directive.
+                        // Definitions that appear before the directive should stay before it.
+                        let directive_line = child.data.borrow().sourcepos.start.line;
+                        self.flush_footnotes_before(Some(directive_line));
+                        self.flush_references();
+                        self.flush_footnote_references_before(Some(directive_line));
+
                         self.skip_mode = FormatSkipMode::NextBlock;
                         // Output the directive comment
                         if i > 0 {
@@ -72,6 +86,13 @@ impl<'a> Serializer<'a> {
                         continue;
                     }
                     Directive::DisableNextSection => {
+                        // Flush pending footnotes and references BEFORE the directive.
+                        // Definitions that appear before the directive should stay before it.
+                        let directive_line = child.data.borrow().sourcepos.start.line;
+                        self.flush_footnotes_before(Some(directive_line));
+                        self.flush_references();
+                        self.flush_footnote_references_before(Some(directive_line));
+
                         self.skip_mode = FormatSkipMode::UntilSection;
                         // Output the directive comment
                         if i > 0 {
@@ -81,6 +102,13 @@ impl<'a> Serializer<'a> {
                         continue;
                     }
                     Directive::Disable => {
+                        // Flush pending footnotes and references BEFORE the disable directive.
+                        // Definitions that appear before the directive should stay before it.
+                        let directive_line = child.data.borrow().sourcepos.start.line;
+                        self.flush_footnotes_before(Some(directive_line));
+                        self.flush_references();
+                        self.flush_footnote_references_before(Some(directive_line));
+
                         self.skip_mode = FormatSkipMode::Disabled;
                         // Output the directive comment
                         if i > 0 {

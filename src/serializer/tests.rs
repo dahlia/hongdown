@@ -3960,3 +3960,209 @@ fn test_code_block_no_format_multiple_metadata() {
     assert!(result.contains("hongdown-no-format"));
     assert!(result.contains("some-other-info"));
 }
+
+// =============================================================================
+// Regression tests for hongdown-disable directive with footnotes/references
+// =============================================================================
+
+#[test]
+fn test_footnote_definition_before_hongdown_disable() {
+    // Footnote definition should NOT move below the hongdown-disable directive.
+    // The footnote definition should be flushed BEFORE the disable directive.
+    // See: https://github.com/dahlia/hongdown/issues/XXX
+    let input = r#"Blah blah blah blah.[^1]
+
+[^1]: This is a footnote.
+
+<!-- hongdown-disable -->
+
+### Foo bar
+
+Some content here.
+
+<!-- hongdown-enable -->
+"#;
+    let result = parse_and_serialize_with_source(input);
+
+    // The footnote definition should appear BEFORE the disable directive
+    let footnote_pos = result.find("[^1]:").expect("footnote definition not found");
+    let disable_pos = result
+        .find("<!-- hongdown-disable -->")
+        .expect("disable directive not found");
+
+    assert!(
+        footnote_pos < disable_pos,
+        "Footnote definition should appear before hongdown-disable directive.\nGot:\n{}",
+        result
+    );
+}
+
+#[test]
+fn test_reference_definition_before_hongdown_disable() {
+    // Reference link definition should NOT move below the hongdown-disable directive.
+    // The reference definition should be flushed BEFORE the disable directive.
+    let input = r#"Blah blah blah blah.[Example]
+
+[Example]: https://example.com/
+
+<!-- hongdown-disable -->
+
+### Foo bar
+
+Some content here.
+
+<!-- hongdown-enable -->
+"#;
+    let result = parse_and_serialize_with_source(input);
+
+    // The reference definition should appear BEFORE the disable directive
+    let reference_pos = result
+        .find("[Example]:")
+        .expect("reference definition not found");
+    let disable_pos = result
+        .find("<!-- hongdown-disable -->")
+        .expect("disable directive not found");
+
+    assert!(
+        reference_pos < disable_pos,
+        "Reference definition should appear before hongdown-disable directive.\nGot:\n{}",
+        result
+    );
+}
+
+#[test]
+fn test_multiple_footnotes_and_references_before_hongdown_disable() {
+    // Multiple footnote and reference definitions should all appear before disable directive.
+    let input = r#"First paragraph with [link1] and footnote[^1].
+
+Second paragraph with [link2] and footnote[^2].
+
+[link1]: https://link1.example.com/
+[^1]: First footnote.
+[link2]: https://link2.example.com/
+[^2]: Second footnote.
+
+<!-- hongdown-disable -->
+
+### Disabled section
+
+Some content here.
+
+<!-- hongdown-enable -->
+"#;
+    let result = parse_and_serialize_with_source(input);
+
+    let disable_pos = result
+        .find("<!-- hongdown-disable -->")
+        .expect("disable directive not found");
+
+    // All definitions should appear before the disable directive
+    let footnote1_pos = result.find("[^1]:").expect("footnote 1 not found");
+    let footnote2_pos = result.find("[^2]:").expect("footnote 2 not found");
+    let link1_pos = result.find("[link1]:").expect("link1 not found");
+    let link2_pos = result.find("[link2]:").expect("link2 not found");
+
+    assert!(
+        footnote1_pos < disable_pos,
+        "Footnote 1 should appear before hongdown-disable.\nGot:\n{}",
+        result
+    );
+    assert!(
+        footnote2_pos < disable_pos,
+        "Footnote 2 should appear before hongdown-disable.\nGot:\n{}",
+        result
+    );
+    assert!(
+        link1_pos < disable_pos,
+        "Link 1 reference should appear before hongdown-disable.\nGot:\n{}",
+        result
+    );
+    assert!(
+        link2_pos < disable_pos,
+        "Link 2 reference should appear before hongdown-disable.\nGot:\n{}",
+        result
+    );
+}
+
+#[test]
+fn test_footnote_definition_before_hongdown_disable_file() {
+    // Footnote definition should NOT move below the hongdown-disable-file directive.
+    let input = r#"Blah blah blah blah.[^1]
+
+[^1]: This is a footnote.
+
+<!-- hongdown-disable-file -->
+
+### Foo bar
+
+Some content here.
+"#;
+    let result = parse_and_serialize_with_source(input);
+
+    // The footnote definition should appear BEFORE the disable-file directive
+    let footnote_pos = result.find("[^1]:").expect("footnote definition not found");
+    let disable_pos = result
+        .find("<!-- hongdown-disable-file -->")
+        .expect("disable-file directive not found");
+
+    assert!(
+        footnote_pos < disable_pos,
+        "Footnote definition should appear before hongdown-disable-file directive.\nGot:\n{}",
+        result
+    );
+}
+
+#[test]
+fn test_footnote_definition_before_hongdown_disable_next_line() {
+    // Footnote definition should NOT move below the hongdown-disable-next-line directive.
+    let input = r#"Blah blah blah blah.[^1]
+
+[^1]: This is a footnote.
+
+<!-- hongdown-disable-next-line -->
+### Foo bar
+
+Some content here.
+"#;
+    let result = parse_and_serialize_with_source(input);
+
+    // The footnote definition should appear BEFORE the disable-next-line directive
+    let footnote_pos = result.find("[^1]:").expect("footnote definition not found");
+    let disable_pos = result
+        .find("<!-- hongdown-disable-next-line -->")
+        .expect("disable-next-line directive not found");
+
+    assert!(
+        footnote_pos < disable_pos,
+        "Footnote definition should appear before hongdown-disable-next-line directive.\nGot:\n{}",
+        result
+    );
+}
+
+#[test]
+fn test_footnote_definition_before_hongdown_disable_next_section() {
+    // Footnote definition should NOT move below the hongdown-disable-next-section directive.
+    let input = r#"Blah blah blah blah.[^1]
+
+[^1]: This is a footnote.
+
+<!-- hongdown-disable-next-section -->
+
+## Foo bar
+
+Some content here.
+"#;
+    let result = parse_and_serialize_with_source(input);
+
+    // The footnote definition should appear BEFORE the disable-next-section directive
+    let footnote_pos = result.find("[^1]:").expect("footnote definition not found");
+    let disable_pos = result
+        .find("<!-- hongdown-disable-next-section -->")
+        .expect("disable-next-section directive not found");
+
+    assert!(
+        footnote_pos < disable_pos,
+        "Footnote definition should appear before hongdown-disable-next-section directive.\nGot:\n{}",
+        result
+    );
+}
