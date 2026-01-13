@@ -1,6 +1,6 @@
 import { Component, createSignal } from "solid-js";
 import { FormatOptions } from "@hongdown/wasm";
-import { Toggle, Select, NumberInput, TextInput } from "./Inputs";
+import { Toggle, Select, NumberInput, TextInput, TextAreaInput } from "./Inputs";
 
 interface OptionsPanelProps {
   options: FormatOptions;
@@ -81,6 +81,29 @@ export const OptionsPanel: Component<OptionsPanelProps> = (props) => {
                 checked={props.options.setextH2 ?? true}
                 onChange={(v) => updateOption("setextH2", v)}
               />
+              <Toggle
+                label="Sentence Case"
+                checked={props.options.headingSentenceCase ?? false}
+                onChange={(v) => updateOption("headingSentenceCase", v)}
+              />
+              {props.options.headingSentenceCase && (
+                <>
+                  <TextAreaInput
+                    label="Proper Nouns"
+                    value={props.options.headingProperNouns ?? []}
+                    placeholder="One per line"
+                    rows={3}
+                    onChange={(v) => updateOption("headingProperNouns", v)}
+                  />
+                  <TextAreaInput
+                    label="Common Nouns"
+                    value={props.options.headingCommonNouns ?? []}
+                    placeholder="One per line"
+                    rows={3}
+                    onChange={(v) => updateOption("headingCommonNouns", v)}
+                  />
+                </>
+              )}
             </Group>
 
             <Group title="Unordered Lists">

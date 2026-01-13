@@ -98,3 +98,38 @@ export const TextInput: Component<TextInputProps> = (props) => {
     </div>
   );
 };
+
+interface TextAreaInputProps {
+  label: string;
+  value: string[];
+  placeholder?: string;
+  rows?: number;
+  onChange: (value: string[]) => void;
+}
+
+export const TextAreaInput: Component<TextAreaInputProps> = (props) => {
+  const textValue = () => props.value.join("\n");
+
+  const handleChange = (text: string) => {
+    const lines = text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    props.onChange(lines);
+  };
+
+  return (
+    <div class="flex flex-col gap-1">
+      <label class="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+        {props.label}
+      </label>
+      <textarea
+        class="input-base text-sm resize-none font-mono"
+        rows={props.rows ?? 3}
+        placeholder={props.placeholder}
+        value={textValue()}
+        onInput={(e) => handleChange(e.currentTarget.value)}
+      />
+    </div>
+  );
+};
