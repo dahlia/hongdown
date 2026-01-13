@@ -6,6 +6,19 @@ Version 0.2.5
 
 To be released.
 
+ -  Fixed a bug where list item continuation lines inside definition lists
+    were indented one extra space.  The formatter now correctly aligns
+    continuation lines with the first line of content.  For example:
+
+    ~~~~ markdown
+    Pros
+    :    -  The actor URI is more predictable and human-readable,
+            which makes debugging easier.
+    ~~~~
+
+    Previously, the continuation line was indented with 9 spaces instead of 8,
+    causing misalignment.
+
 
 Version 0.2.4
 -------------
