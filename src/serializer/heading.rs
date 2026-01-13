@@ -1275,4 +1275,47 @@ mod tests {
             "Using Swift/Go"
         );
     }
+
+    #[test]
+    fn test_continents_and_regions() {
+        // Continent names should be preserved
+        assert_eq!(
+            to_sentence_case("Traveling Through Europe And Asia", &[], &[]),
+            "Traveling through Europe and Asia"
+        );
+        assert_eq!(
+            to_sentence_case("Exploring Africa And South America", &[], &[]),
+            "Exploring Africa and South America"
+        );
+        // Regional adjectives should be preserved
+        assert_eq!(
+            to_sentence_case("European And Asian Cultures", &[], &[]),
+            "European and Asian cultures"
+        );
+        assert_eq!(
+            to_sentence_case("African And American History", &[], &[]),
+            "African and American history"
+        );
+        // Sub-regions should be preserved
+        assert_eq!(
+            to_sentence_case("East Asian Languages", &[], &[]),
+            "East Asian languages"
+        );
+        assert_eq!(
+            to_sentence_case("Southeast Asian Cuisine", &[], &[]),
+            "Southeast Asian cuisine"
+        );
+        assert_eq!(
+            to_sentence_case("Western European Countries", &[], &[]),
+            "Western European countries"
+        );
+        assert_eq!(
+            to_sentence_case("Middle Eastern Politics", &[], &[]),
+            "Middle Eastern politics"
+        );
+        assert_eq!(
+            to_sentence_case("Latin American Music", &[], &[]),
+            "Latin American music"
+        );
+    }
 }
