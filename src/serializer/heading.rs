@@ -70,12 +70,20 @@ enum Token {
 
 /// Normalize straight quotes to curly quotes.
 /// This is smart replacement - opening vs closing quotes.
+/// Apostrophes (single quotes between letters) are kept as straight quotes.
 fn normalize_quotes(text: &str) -> String {
     let mut result = String::new();
-    let chars = text.chars().peekable();
-    let mut prev_char: Option<char> = None;
+    let chars: Vec<char> = text.chars().collect();
 
-    for ch in chars {
+    for i in 0..chars.len() {
+        let ch = chars[i];
+        let prev_char = if i > 0 { Some(chars[i - 1]) } else { None };
+        let next_char = if i + 1 < chars.len() {
+            Some(chars[i + 1])
+        } else {
+            None
+        };
+
         if ch == '"' {
             // Check if it's an opening or closing quote
             // Opening: at start, or after whitespace/punctuation
@@ -90,21 +98,29 @@ fn normalize_quotes(text: &str) -> String {
                 result.push('\u{201D}');
             }
         } else if ch == '\'' {
-            // Check if it's an opening or closing quote
-            let is_opening = prev_char.is_none()
-                || prev_char
-                    .map(|c| c.is_whitespace() || c == '(' || c == '[')
-                    .unwrap_or(false);
+            // Check if it's an apostrophe (between letters) or a quote
+            let is_apostrophe = prev_char.map(|c| c.is_alphabetic()).unwrap_or(false)
+                && next_char.map(|c| c.is_alphabetic()).unwrap_or(false);
 
-            if is_opening {
-                result.push('\u{2018}');
+            if is_apostrophe {
+                // Keep apostrophe as straight quote
+                result.push('\'');
             } else {
-                result.push('\u{2019}');
+                // Check if it's an opening or closing quote
+                let is_opening = prev_char.is_none()
+                    || prev_char
+                        .map(|c| c.is_whitespace() || c == '(' || c == '[')
+                        .unwrap_or(false);
+
+                if is_opening {
+                    result.push('\u{2018}');
+                } else {
+                    result.push('\u{2019}');
+                }
             }
         } else {
             result.push(ch);
         }
-        prev_char = Some(ch);
     }
 
     result
@@ -361,7 +377,7 @@ fn replace_multiword_with_placeholders(
                 let substring: String = chars_from_here.iter().collect();
                 if matches_ignoring_apostrophes(&substring, search_key) {
                     let actual_pos = substring_start;
-                    let end_pos = substring_start + substring.len();
+                    let mut end_pos = substring_start + substring.len();
                     match_end_byte = end_pos;
 
                     // Check word boundaries
@@ -379,10 +395,28 @@ fn replace_multiword_with_placeholders(
                             .unwrap_or(true);
 
                     if is_word_start && is_word_end {
-                        // Replace with placeholder
-                        let placeholder =
-                            format!("\u{FFFD}MULTIWORD_{}\u{FFFD}", placeholder_counter);
-                        replacements.push((placeholder.clone(), canonical.clone()));
+                        // Check if followed by possessive marker ('s or 's)
+                        // If so, include it in the replacement to preserve proper noun
+                        let remaining = &result[end_pos..];
+                        if remaining.starts_with("'s") {
+                            end_pos += 2;
+                        } else if remaining.starts_with("\u{2019}s") {
+                            end_pos += "\u{2019}s".len();
+                        }
+
+                        // Replace with placeholder (using only symbols to avoid case conversion)
+                        let placeholder = format!("\u{FFFD}{}\u{FFFD}", placeholder_counter);
+
+                        // Store the canonical form with possessive if present
+                        let full_canonical = if end_pos > substring_start + substring.len() {
+                            let possessive_suffix =
+                                &result[substring_start + substring.len()..end_pos];
+                            format!("{}{}", canonical, possessive_suffix)
+                        } else {
+                            canonical.clone()
+                        };
+
+                        replacements.push((placeholder.clone(), full_canonical));
                         placeholder_counter += 1;
 
                         result.replace_range(actual_pos..end_pos, &placeholder);
@@ -574,6 +608,12 @@ fn process_word_simple(
         return String::new();
     }
 
+    // Check if this is a placeholder for multi-word proper noun
+    // Placeholders use replacement character (U+FFFD) as markers
+    if word.contains('\u{FFFD}') {
+        return word.to_string();
+    }
+
     // Check if all alphabetic characters are uppercase (intentional emphasis)
     let alphabetic_chars: Vec<char> = word.chars().filter(|c| c.is_alphabetic()).collect();
     if !alphabetic_chars.is_empty() && alphabetic_chars.iter().all(|c| c.is_uppercase()) {
@@ -652,14 +692,24 @@ fn is_acronym(word: &str) -> bool {
 /// Find a proper noun match (case-insensitive search).
 /// Returns None if the word is in the common_nouns list.
 /// Handles words with trailing punctuation (e.g., "France," matches "France").
+/// Handles possessive forms (e.g., "GitHub's" matches "GitHub").
 fn find_proper_noun(
     word: &str,
     user_proper_nouns: &[String],
     common_nouns: &[String],
 ) -> Option<String> {
-    // Strip trailing punctuation to find the core word
-    let core_word = word.trim_end_matches(|c: char| !c.is_alphanumeric());
-    let trailing_punct = &word[core_word.len()..];
+    // Check for possessive form ('s or 's) and strip it temporarily
+    let (core_word, possessive_suffix) = if let Some(stripped) = word.strip_suffix("'s") {
+        (stripped, "'s")
+    } else if let Some(stripped) = word.strip_suffix("\u{2019}s") {
+        (stripped, "\u{2019}s")
+    } else {
+        (word, "")
+    };
+
+    // Strip remaining trailing punctuation to find the core word
+    let core_word = core_word.trim_end_matches(|c: char| !c.is_alphanumeric());
+    let trailing_punct = &word[core_word.len()..word.len() - possessive_suffix.len()];
     let core_word_lower = core_word.to_lowercase();
 
     // If no alphabetic characters remain, return None
@@ -678,14 +728,20 @@ fn find_proper_noun(
     // Check user proper nouns first
     for proper_noun in user_proper_nouns {
         if proper_noun.to_lowercase() == core_word_lower {
-            return Some(format!("{}{}", proper_noun, trailing_punct));
+            return Some(format!(
+                "{}{}{}",
+                proper_noun, trailing_punct, possessive_suffix
+            ));
         }
     }
 
     // Check built-in proper nouns (excluding those in common_nouns)
     for (canonical, key) in PROPER_NOUNS {
         if *key == core_word_lower {
-            return Some(format!("{}{}", canonical, trailing_punct));
+            return Some(format!(
+                "{}{}{}",
+                canonical, trailing_punct, possessive_suffix
+            ));
         }
     }
 
@@ -1034,22 +1090,22 @@ mod tests {
 
     #[test]
     fn test_apostrophe_not_quote() {
-        // Apostrophes should not be treated as quotes
+        // Apostrophes (between letters) should remain as straight quotes, not curly quotes
         assert_eq!(
             to_sentence_case("Let's Code With JavaScript", &[], &[]),
-            "Let\u{2019}s code with JavaScript"
+            "Let's code with JavaScript"
         );
         assert_eq!(
             to_sentence_case("It's Working Now", &[], &[]),
-            "It\u{2019}s working now"
+            "It's working now"
         );
         assert_eq!(
             to_sentence_case("Don't Use This", &[], &[]),
-            "Don\u{2019}t use this"
+            "Don't use this"
         );
         assert_eq!(
             to_sentence_case("Let's Code In JavaScript And Diggin' It", &[], &[]),
-            "Let\u{2019}s code in JavaScript and diggin\u{2019} it"
+            "Let's code in JavaScript and diggin\u{2019} it"
         );
     }
 
@@ -1062,7 +1118,7 @@ mod tests {
         );
         assert_eq!(
             to_sentence_case("It's In The 'Quick Start' Guide", &[], &[]),
-            "It\u{2019}s in the \u{2018}Quick start\u{2019} guide"
+            "It's in the \u{2018}Quick start\u{2019} guide"
         );
     }
 
@@ -1396,6 +1452,27 @@ mod tests {
         assert_eq!(
             to_sentence_case("Section 1—Europe And Asia", &[], &[]),
             "Section 1—Europe and Asia"
+        );
+    }
+
+    #[test]
+    fn test_possessive_proper_nouns() {
+        // Possessive forms of proper nouns should work correctly
+        assert_eq!(
+            to_sentence_case(
+                "Hong Minhee's Markdown Style Convention",
+                &["Hong Minhee".to_string()],
+                &[]
+            ),
+            "Hong Minhee's Markdown style convention"
+        );
+        assert_eq!(
+            to_sentence_case("GitHub's Documentation System", &[], &[]),
+            "GitHub's documentation system"
+        );
+        assert_eq!(
+            to_sentence_case("Python's Features And JavaScript's Benefits", &[], &[]),
+            "Python's features and JavaScript's benefits"
         );
     }
 }
