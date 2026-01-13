@@ -98,6 +98,26 @@ impl<'a> Serializer<'a> {
                         self.output.push_str(&html_block.literal);
                         continue;
                     }
+                    Directive::ProperNouns(nouns) => {
+                        // Add to directive proper nouns list
+                        self.directive_proper_nouns.extend(nouns);
+                        // Output the directive comment
+                        if i > 0 {
+                            self.output.push('\n');
+                        }
+                        self.output.push_str(&html_block.literal);
+                        continue;
+                    }
+                    Directive::CommonNouns(nouns) => {
+                        // Add to directive common nouns list
+                        self.directive_common_nouns.extend(nouns);
+                        // Output the directive comment
+                        if i > 0 {
+                            self.output.push('\n');
+                        }
+                        self.output.push_str(&html_block.literal);
+                        continue;
+                    }
                 }
             }
 
@@ -373,11 +393,16 @@ impl<'a> Serializer<'a> {
 
         // Apply sentence case if enabled
         if self.options.heading_sentence_case {
-            heading_text = super::heading::to_sentence_case(
-                &heading_text,
-                &self.options.heading_proper_nouns,
-                &self.options.heading_common_nouns,
-            );
+            // Merge config proper nouns with directive proper nouns
+            let mut proper_nouns = self.options.heading_proper_nouns.clone();
+            proper_nouns.extend(self.directive_proper_nouns.clone());
+
+            // Merge config common nouns with directive common nouns
+            let mut common_nouns = self.options.heading_common_nouns.clone();
+            common_nouns.extend(self.directive_common_nouns.clone());
+
+            heading_text =
+                super::heading::to_sentence_case(&heading_text, &proper_nouns, &common_nouns);
         }
 
         if level == 1 && self.options.setext_h1 {
@@ -595,6 +620,9 @@ impl<'a> Serializer<'a> {
                     }
                     Directive::Enable => {
                         // Enable doesn't start a new range, it ends one
+                    }
+                    Directive::ProperNouns(_) | Directive::CommonNouns(_) => {
+                        // These directives don't affect warning ranges
                     }
                 }
             }

@@ -537,3 +537,73 @@ mod cli_tests {
         assert!(stdout.is_empty());
     }
 }
+
+/// Test proper nouns directive in sentence case.
+#[test]
+fn test_sentence_case_proper_nouns_directive() {
+    let input = r#"<!-- hongdown-proper-nouns: Swift, Go -->
+
+# Using Swift And Go Programming
+
+Some content.
+"#;
+
+    let options = Options {
+        heading_sentence_case: true,
+        ..Options::default()
+    };
+    let result = format(input, &options).unwrap();
+
+    // Swift and Go should be preserved as proper nouns
+    assert!(
+        result.contains("Using Swift and Go programming"),
+        "Swift and Go should be preserved as proper nouns via directive"
+    );
+}
+
+/// Test common nouns directive in sentence case.
+#[test]
+fn test_sentence_case_common_nouns_directive() {
+    let input = r#"<!-- hongdown-common-nouns: Python, JavaScript -->
+
+# Learning Python And JavaScript Programming
+
+Some content.
+"#;
+
+    let options = Options {
+        heading_sentence_case: true,
+        ..Options::default()
+    };
+    let result = format(input, &options).unwrap();
+
+    // Python and JavaScript should NOT be preserved (treated as common nouns)
+    assert!(
+        result.contains("Learning python and javascript programming"),
+        "Python and JavaScript should be lowercased via common-nouns directive"
+    );
+}
+
+/// Test both directives together.
+#[test]
+fn test_sentence_case_both_directives() {
+    let input = r#"<!-- hongdown-proper-nouns: Swift, Go -->
+<!-- hongdown-common-nouns: Python -->
+
+# Using Swift, Go, And Python
+
+Some content.
+"#;
+
+    let options = Options {
+        heading_sentence_case: true,
+        ..Options::default()
+    };
+    let result = format(input, &options).unwrap();
+
+    // Swift and Go preserved, Python lowercased
+    assert!(
+        result.contains("Using Swift, Go, and python"),
+        "Swift and Go should be proper nouns, Python should be common noun"
+    );
+}

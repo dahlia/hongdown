@@ -99,10 +99,14 @@ hongdown - < input.md
 hongdown --line-width 100 input.md
 ~~~~
 
-### Disable directives
+### HTML comment directives
 
-Hongdown supports special HTML comments to disable formatting for specific
-sections of your document:
+Hongdown supports special HTML comment directives to control formatting
+behavior within documents.
+
+#### Disable formatting
+
+You can disable formatting for specific sections:
 
 ~~~~ markdown
 <!-- hongdown-disable-file -->
@@ -133,6 +137,27 @@ This section is not formatted.
 <!-- hongdown-enable -->
 This section is formatted again.
 ~~~~
+
+#### Sentence case customization
+
+When sentence case is enabled, you can define document-specific proper nouns
+and common nouns:
+
+~~~~ markdown
+<!-- hongdown-proper-nouns: Swift, Go -->
+<!-- hongdown-common-nouns: Python -->
+
+# Using Swift And Go For Python Development
+
+This heading will be formatted as: "Using Swift and Go for python development"
+~~~~
+
+ -  `<!-- hongdown-proper-nouns: Word1, Word2 -->` – Defines proper nouns to
+    preserve (case-sensitive)
+ -  `<!-- hongdown-common-nouns: Word1, Word2 -->` – Overrides built-in proper
+    nouns by treating them as common nouns
+
+These directives are merged with configuration file settings.
 
 ### Configuration file
 
@@ -271,9 +296,13 @@ sentence_case = true
 common_nouns = ["Go", "Swift"]  # Treat these as common nouns, not proper nouns
 ~~~~
 
-Built-in proper nouns include common programming languages (JavaScript,
+Built-in proper nouns include ~450 entries: programming languages (JavaScript,
 TypeScript, Python, Rust, Go), technologies (GitHub, Docker, React, Node.js),
-databases (PostgreSQL, MySQL, MongoDB), and more.
+databases (PostgreSQL, MySQL, MongoDB), countries (United States, Republic of
+Korea), natural languages (English, Korean, Japanese), and more.
+
+You can also use HTML comment directives to define document-specific proper
+nouns and common nouns.  See the “HTML comment directives” section for details.
 
 ### Lists
 

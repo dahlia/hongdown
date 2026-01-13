@@ -27,7 +27,7 @@ pub enum FormatSkipMode {
 }
 
 /// Formatting directives that can be embedded in HTML comments.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Directive {
     /// Disable formatting for the next block element only.
     DisableNextLine,
@@ -39,6 +39,10 @@ pub enum Directive {
     Disable,
     /// Re-enable formatting after `Disable`.
     Enable,
+    /// Define proper nouns for sentence case (case-sensitive).
+    ProperNouns(Vec<String>),
+    /// Define common nouns for sentence case (case-sensitive).
+    CommonNouns(Vec<String>),
 }
 
 impl Directive {
@@ -53,14 +57,36 @@ impl Directive {
         // Extract the content between <!-- and -->
         let content = trimmed.strip_prefix("<!--")?.strip_suffix("-->")?.trim();
 
+        // Check for directives without arguments
         match content {
-            "hongdown-disable-next-line" => Some(Directive::DisableNextLine),
-            "hongdown-disable-file" => Some(Directive::DisableFile),
-            "hongdown-disable-next-section" => Some(Directive::DisableNextSection),
-            "hongdown-disable" => Some(Directive::Disable),
-            "hongdown-enable" => Some(Directive::Enable),
-            _ => None,
+            "hongdown-disable-next-line" => return Some(Directive::DisableNextLine),
+            "hongdown-disable-file" => return Some(Directive::DisableFile),
+            "hongdown-disable-next-section" => return Some(Directive::DisableNextSection),
+            "hongdown-disable" => return Some(Directive::Disable),
+            "hongdown-enable" => return Some(Directive::Enable),
+            _ => {}
         }
+
+        // Check for directives with arguments
+        if let Some(args) = content.strip_prefix("hongdown-proper-nouns:") {
+            let nouns = args
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            return Some(Directive::ProperNouns(nouns));
+        }
+
+        if let Some(args) = content.strip_prefix("hongdown-common-nouns:") {
+            let nouns = args
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            return Some(Directive::CommonNouns(nouns));
+        }
+
+        None
     }
 }
 
@@ -238,6 +264,10 @@ pub struct Serializer<'a> {
     /// The list depth when entering the current blockquote.
     /// Used to determine if a list exists inside vs outside the blockquote.
     pub blockquote_entry_list_depth: usize,
+    /// Proper nouns defined via directives for sentence case (merged with config)
+    pub directive_proper_nouns: Vec<String>,
+    /// Common nouns defined via directives for sentence case (merged with config)
+    pub directive_common_nouns: Vec<String>,
 }
 
 impl<'a> Serializer<'a> {
@@ -267,6 +297,8 @@ impl<'a> Serializer<'a> {
             list_item_indent: String::new(),
             blockquote_outer_indent: String::new(),
             blockquote_entry_list_depth: 0,
+            directive_proper_nouns: Vec::new(),
+            directive_common_nouns: Vec::new(),
         }
     }
 

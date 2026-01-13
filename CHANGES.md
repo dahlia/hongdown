@@ -19,18 +19,29 @@ To be released.
      -  `proper_nouns`: List of user-defined proper nouns to preserve
      -  `common_nouns`: List of words to exclude from built-in proper nouns
 
-    The formatter includes ~135 built-in proper nouns (programming languages,
-    frameworks, cloud providers, etc.) and supports multi-word proper nouns
-    like “GitHub Actions” and “GitHub Pages”.  It applies intelligent
-    heuristics:
+    The formatter includes ~450 built-in proper nouns (programming languages,
+    frameworks, cloud providers, countries, natural languages, etc.) and
+    supports multi-word proper nouns like “GitHub Actions” and “United States
+    of America”.  It applies intelligent heuristics:
 
      -  Preserves acronyms (2+ consecutive uppercase letters: API, HTTP)
+     -  Preserves acronyms with periods (U.S.A., Ph.D., R.O.K.)
      -  Preserves proper nouns (case-insensitive matching)
      -  Preserves code spans (backticks)
      -  Handles quoted text based on original capitalization
      -  Handles hyphenated words independently
      -  Preserves all-caps words (intentional emphasis: IMPORTANT)
      -  Preserves non-Latin scripts (CJK, etc.)
+
+    Document-level directives allow per-document customization:
+
+     -  `<!-- hongdown-proper-nouns: Swift, Go -->` – Define proper nouns to
+        preserve within the document
+     -  `<!-- hongdown-common-nouns: Python -->` – Override built-in proper
+        nouns by treating them as common nouns
+
+    These directives are merged with configuration file settings, enabling
+    fine-tuned control over capitalization for specific documents.
 
  -  Added SmartyPants-style punctuation transformation.  The formatter can now
     convert ASCII punctuation to typographically correct Unicode equivalents.
