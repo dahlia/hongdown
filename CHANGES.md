@@ -4,7 +4,7 @@ Hongdown changelog
 Version 0.2.5
 -------------
 
-To be released.
+Released on January 14, 2026.
 
  -  Fixed a bug where list item continuation lines inside definition lists
     were indented one extra space.  The formatter now correctly aligns
