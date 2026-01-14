@@ -6,6 +6,53 @@ Version 0.3.0
 
 To be released.
 
+ -  Breaking changes: All configuration options now use type-safe newtypes
+    and enums instead of primitive types, preventing invalid configurations at
+    parse time rather than runtime.  This implements the “Make Invalid States
+    Unrepresentable” pattern.  [[#14], [#16]]
+
+    The following types have been added:
+
+     -  `UnorderedMarker` enum: Validates unordered list markers (hyphen,
+        asterisk, plus)
+     -  `OrderedMarker` enum: Validates ordered list markers (dot, parenthesis)
+     -  `FenceChar` enum: Validates code block fence characters (tilde,
+        backtick)
+     -  `MinFenceLength` newtype: Ensures minimum fence length is at least 3
+     -  `LeadingSpaces` newtype: Validates leading spaces are between 0–3
+        (CommonMark requirement)
+     -  `TrailingSpaces` newtype: Validates trailing spaces are between 1–2
+     -  `IndentWidth` newtype: Ensures indentation width is at least 1
+     -  `LineWidth` newtype: Ensures line width is at least 8 (warns if below
+        40 for readability)
+     -  `ThematicBreakStyle` newtype: Validates thematic break patterns follow
+        CommonMark spec (at least 3 of the same character: `*`, `-`, or `_`)
+     -  `DashPattern` newtype: Ensures dash transformation patterns are
+        non-empty and contain only printable ASCII characters
+
+    Configuration files with invalid values will now fail to parse with
+    descriptive error messages.  For example, setting `line_width = 5` will
+    produce: `"line_width must be at least 8, got 5."`
+
+    If you're using the Rust API directly, you'll need to update your code to
+    use the new types.  For example:
+
+    ~~~~ rust
+    use hongdown::{Options, LineWidth, UnorderedMarker};
+
+    let options = Options {
+        line_width: LineWidth::new(80).unwrap(),
+        unordered_marker: UnorderedMarker::Hyphen,
+        ..Options::default()
+    };
+    ~~~~
+
+    WASM and CLI users are unaffected as the types are automatically converted
+    from configuration values.
+
+[#14]: https://github.com/dahlia/hongdown/issues/14
+[#16]: https://github.com/dahlia/hongdown/pull/16
+
 
 Version 0.2.6
 -------------

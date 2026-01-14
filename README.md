@@ -174,7 +174,7 @@ include = []              # Files to format (default: none, specify on CLI)
 exclude = []              # Files to skip (default: none)
 
 # Formatting options
-line_width = 80           # Maximum line width (default: 80)
+line_width = 80           # Maximum line width (min: 8, default: 80)
 
 [heading]
 setext_h1 = true          # Use === underline for h1 (default: true)
@@ -185,19 +185,19 @@ common_nouns = []         # Exclude built-in proper nouns (default: [])
 
 [unordered_list]
 unordered_marker = "-"    # "-", "*", or "+" (default: "-")
-leading_spaces = 1        # Spaces before marker (default: 1)
-trailing_spaces = 2       # Spaces after marker (default: 2)
-indent_width = 4          # Indentation for nested items (default: 4)
+leading_spaces = 1        # Spaces before marker (0–3, default: 1)
+trailing_spaces = 2       # Spaces after marker (1–2, default: 2)
+indent_width = 4          # Indentation for nested items (min: 1, default: 4)
 
 [ordered_list]
 odd_level_marker = "."    # "." or ")" at odd nesting levels (default: ".")
 even_level_marker = ")"   # "." or ")" at even nesting levels (default: ")")
 pad = "start"             # "start" or "end" for number alignment (default: "start")
-indent_width = 4          # Indentation for nested items (default: 4)
+indent_width = 4          # Indentation for nested items (min: 1, default: 4)
 
 [code_block]
 fence_char = "~"          # "~" or "`" (default: "~")
-min_fence_length = 4      # Minimum fence length (default: 4)
+min_fence_length = 4      # Minimum fence length (min: 3, default: 4)
 space_after_fence = true  # Space between fence and language (default: true)
 default_language = ""     # Default language for code blocks (default: "")
 
@@ -206,8 +206,9 @@ default_language = ""     # Default language for code blocks (default: "")
 # javascript = ["deno", "fmt", "--ext=js", "-"]
 
 [thematic_break]
+# Must be valid CommonMark: at least 3 of *, -, or _ (with optional spaces)
 style = "- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
-leading_spaces = 3        # Leading spaces (0-3, default: 3)
+leading_spaces = 3        # Leading spaces (0–3, default: 3)
 
 [punctuation]
 curly_double_quotes = true   # "text" to "text" (default: true)
@@ -216,6 +217,14 @@ curly_apostrophes = false    # it's to it's (default: false)
 ellipsis = true              # ... to ... (default: true)
 en_dash = false              # Disabled by default (use "--" to enable)
 em_dash = "--"               # -- to --- (default: "--", use false to disable)
+~~~~
+
+Configuration values are validated at parse time.  Invalid values will produce
+descriptive error messages:
+
+~~~~ bash
+$ hongdown --config invalid.toml input.md
+Error: failed to parse configuration file: line_width must be at least 8, got 5.
 ~~~~
 
 When `include` patterns are configured, you can run Hongdown without
