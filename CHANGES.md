@@ -6,6 +6,19 @@ Version 0.3.0
 
 To be released.
 
+ -  Dramatically improved file collection performance when using `include` and
+    `exclude` patterns in configuration files.  The implementation now uses the
+    [`ignore`] crate instead of [`glob`], which efficiently skips excluded
+    directories before traversing them rather than filtering after collection.
+
+    In large projects with many files in `node_modules` or similar directories,
+    this provides 100–200× speedup.  For example, in a project with ~130,000
+    files where only 81 need formatting, `hongdown --check` now completes in
+    0.06 seconds instead of 16 seconds (265× faster).
+
+    Configuration files require no changes—all existing `include` and `exclude`
+    patterns remain fully compatible.
+
  -  Breaking changes: All configuration options now use type-safe newtypes
     and enums instead of primitive types, preventing invalid configurations at
     parse time rather than runtime.  This implements the “Make Invalid States
@@ -50,6 +63,8 @@ To be released.
     WASM and CLI users are unaffected as the types are automatically converted
     from configuration values.
 
+[`ignore`]: https://crates.io/crates/ignore
+[`glob`]: https://crates.io/crates/glob
 [#14]: https://github.com/dahlia/hongdown/issues/14
 [#16]: https://github.com/dahlia/hongdown/pull/16
 

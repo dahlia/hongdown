@@ -845,57 +845,51 @@ impl Config {
     /// The `base_dir` is used as the starting point for glob pattern matching.
     /// Returns an empty list if no include patterns are configured.
     pub fn collect_files(&self, base_dir: &Path) -> Result<Vec<PathBuf>, ConfigError> {
-        use glob::{MatchOptions, glob_with};
+        use ignore::WalkBuilder;
+        use ignore::overrides::OverrideBuilder;
 
         if self.include.is_empty() {
             return Ok(Vec::new());
         }
 
-        let options = MatchOptions {
-            case_sensitive: true,
-            require_literal_separator: false,
-            require_literal_leading_dot: false,
-        };
+        // Build override patterns: include patterns are whitelist,
+        // exclude patterns are prefixed with ! to negate them
+        let mut override_builder = OverrideBuilder::new(base_dir);
 
-        let mut files = Vec::new();
-
-        // Collect files matching include patterns
+        // Add include patterns
         for pattern in &self.include {
-            let full_pattern = base_dir.join(pattern);
-            let pattern_str = full_pattern.to_string_lossy();
-            let matches = glob_with(&pattern_str, options)
-                .map_err(|e| ConfigError::Glob(pattern.clone(), e))?;
+            override_builder.add(pattern).map_err(ConfigError::Ignore)?;
+        }
 
-            for entry in matches {
-                let path = entry.map_err(ConfigError::GlobIo)?;
-                if path.is_file() {
-                    files.push(path);
-                }
+        // Add exclude patterns with ! prefix (negation)
+        for pattern in &self.exclude {
+            override_builder
+                .add(&format!("!{}", pattern))
+                .map_err(ConfigError::Ignore)?;
+        }
+
+        let overrides = override_builder.build().map_err(ConfigError::Ignore)?;
+
+        // Build walker with overrides
+        // This efficiently skips directories that don't match patterns
+        let walker = WalkBuilder::new(base_dir)
+            .hidden(false) // Don't automatically ignore hidden files
+            .git_ignore(false) // Don't use .gitignore files
+            .overrides(overrides)
+            .build();
+
+        // Collect matching files
+        let mut files = Vec::new();
+        for entry in walker {
+            let entry = entry.map_err(ConfigError::Ignore)?;
+            let path = entry.path();
+            if path.is_file() {
+                files.push(path.to_path_buf());
             }
         }
 
-        // Remove duplicates
+        // Sort for consistent ordering
         files.sort();
-        files.dedup();
-
-        // Filter out excluded files
-        if !self.exclude.is_empty() {
-            let exclude_patterns: Vec<glob::Pattern> = self
-                .exclude
-                .iter()
-                .filter_map(|p| {
-                    let full_pattern = base_dir.join(p);
-                    glob::Pattern::new(&full_pattern.to_string_lossy()).ok()
-                })
-                .collect();
-
-            files.retain(|path| {
-                let path_str = path.to_string_lossy();
-                !exclude_patterns
-                    .iter()
-                    .any(|pattern| pattern.matches(&path_str))
-            });
-        }
 
         Ok(files)
     }
@@ -912,6 +906,8 @@ pub enum ConfigError {
     Glob(String, glob::PatternError),
     /// I/O error during glob iteration.
     GlobIo(glob::GlobError),
+    /// Error from ignore crate (file traversal).
+    Ignore(ignore::Error),
 }
 
 impl std::fmt::Display for ConfigError {
@@ -929,6 +925,9 @@ impl std::fmt::Display for ConfigError {
             ConfigError::GlobIo(err) => {
                 write!(f, "error reading file: {}", err)
             }
+            ConfigError::Ignore(err) => {
+                write!(f, "error during file traversal: {}", err)
+            }
         }
     }
 }
@@ -940,6 +939,7 @@ impl std::error::Error for ConfigError {
             ConfigError::Parse(_, err) => Some(err),
             ConfigError::Glob(_, err) => Some(err),
             ConfigError::GlobIo(err) => Some(err),
+            ConfigError::Ignore(err) => Some(err),
         }
     }
 }

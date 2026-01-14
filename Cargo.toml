@@ -32,6 +32,7 @@ wasm-bindgen = { version = "0.2", optional = true }
 serde-wasm-bindgen = { version = "0.6", optional = true }
 js-sys = { version = "0.3", optional = true }
 getrandom = { version = "0.3", features = ["wasm_js"], optional = true }
+ignore = "0.4.25"
 
 [dev-dependencies]
 tempfile = "3.24.0"
