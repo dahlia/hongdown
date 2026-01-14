@@ -1,6 +1,6 @@
 //! Integration tests for Hongdown formatter.
 
-use hongdown::{Options, format};
+use hongdown::{LineWidth, Options, format};
 
 /// Test that formatting is idempotent (formatting twice produces same result).
 #[test]
@@ -71,7 +71,7 @@ Visit [Rust](https://www.rust-lang.org/) for more info.
 fn test_inline_code_not_broken() {
     let input = "This is a paragraph with `some_very_long_function_name_that_should_not_be_broken()` inline code.";
     let options = Options {
-        line_width: 40,
+        line_width: LineWidth::new(40).unwrap(),
         ..Options::default()
     };
     let result = format(input, &options).unwrap();
