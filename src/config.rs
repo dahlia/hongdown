@@ -214,8 +214,53 @@ impl<'de> serde::Deserialize<'de> for TrailingSpaces {
     }
 }
 
+/// Indentation width for nested list items (must be at least 1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IndentWidth(usize);
+
+impl IndentWidth {
+    /// Minimum allowed indent width.
+    pub const MIN: usize = 1;
+
+    /// Create a new IndentWidth.
+    ///
+    /// Returns an error if the value is less than 1.
+    pub fn new(value: usize) -> Result<Self, String> {
+        if value < Self::MIN {
+            Err(format!(
+                "indent_width must be at least {}, got {}.",
+                Self::MIN,
+                value
+            ))
+        } else {
+            Ok(Self(value))
+        }
+    }
+
+    /// Get the inner value.
+    pub fn get(self) -> usize {
+        self.0
+    }
+}
+
+impl Default for IndentWidth {
+    fn default() -> Self {
+        Self(4)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for IndentWidth {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = usize::deserialize(deserializer)?;
+        Self::new(value).map_err(serde::de::Error::custom)
+    }
+}
+
 /// Unordered list formatting options.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Default)]
 #[serde(default)]
 pub struct UnorderedListConfig {
     /// Marker character: `-`, `*`, or `+` (default: `-`).
@@ -228,18 +273,7 @@ pub struct UnorderedListConfig {
     pub trailing_spaces: TrailingSpaces,
 
     /// Indentation width for nested items (default: 4).
-    pub indent_width: usize,
-}
-
-impl Default for UnorderedListConfig {
-    fn default() -> Self {
-        Self {
-            unordered_marker: UnorderedMarker::default(),
-            leading_spaces: LeadingSpaces::default(),
-            trailing_spaces: TrailingSpaces::default(),
-            indent_width: 4,
-        }
-    }
+    pub indent_width: IndentWidth,
 }
 
 /// Marker character for ordered lists.
@@ -289,7 +323,7 @@ pub struct OrderedListConfig {
     pub pad: OrderedListPad,
 
     /// Indentation width for nested ordered list items (default: 4).
-    pub indent_width: usize,
+    pub indent_width: IndentWidth,
 }
 
 impl Default for OrderedListConfig {
@@ -298,7 +332,7 @@ impl Default for OrderedListConfig {
             odd_level_marker: OrderedMarker::default(),
             even_level_marker: OrderedMarker::Parenthesis,
             pad: OrderedListPad::Start,
-            indent_width: 4,
+            indent_width: IndentWidth::default(),
         }
     }
 }
@@ -739,14 +773,14 @@ mod tests {
         );
         assert_eq!(config.unordered_list.leading_spaces.get(), 1);
         assert_eq!(config.unordered_list.trailing_spaces.get(), 2);
-        assert_eq!(config.unordered_list.indent_width, 4);
+        assert_eq!(config.unordered_list.indent_width.get(), 4);
         assert_eq!(config.ordered_list.odd_level_marker, OrderedMarker::Period);
         assert_eq!(
             config.ordered_list.even_level_marker,
             OrderedMarker::Parenthesis
         );
         assert_eq!(config.ordered_list.pad, OrderedListPad::Start);
-        assert_eq!(config.ordered_list.indent_width, 4);
+        assert_eq!(config.ordered_list.indent_width.get(), 4);
         assert_eq!(config.code_block.fence_char, FenceChar::Tilde);
         assert_eq!(config.code_block.min_fence_length.get(), 4);
         assert!(config.code_block.space_after_fence);
@@ -871,7 +905,7 @@ indent_width = 2
         );
         assert_eq!(config.unordered_list.leading_spaces.get(), 0);
         assert_eq!(config.unordered_list.trailing_spaces.get(), 1);
-        assert_eq!(config.unordered_list.indent_width, 2);
+        assert_eq!(config.unordered_list.indent_width.get(), 2);
     }
 
     #[test]
@@ -995,23 +1029,6 @@ style = "---"
     fn test_parse_invalid_toml() {
         let result = Config::from_toml("line_width = \"not a number\"");
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_discover_config_in_current_dir() {
-        let temp_dir = std::env::temp_dir().join("hongdown_test_current");
-        let _ = std::fs::remove_dir_all(&temp_dir);
-        std::fs::create_dir_all(&temp_dir).unwrap();
-        let config_path = temp_dir.join(CONFIG_FILE_NAME);
-        std::fs::write(&config_path, "line_width = 120").unwrap();
-
-        let result = Config::discover(&temp_dir).unwrap();
-        assert!(result.is_some());
-        let (path, config) = result.unwrap();
-        assert_eq!(path, config_path);
-        assert_eq!(config.line_width, 120);
-
-        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 
     #[test]

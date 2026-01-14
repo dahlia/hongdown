@@ -1909,7 +1909,7 @@ fn test_list_indent_width_two() {
     // indent_width=2: nested list has 2 spaces indent before " -  " prefix
     // Result: 2 spaces + " -  " = "   -  " (3 spaces before marker)
     let options = Options {
-        indent_width: 2,
+        indent_width: IndentWidth::new(2).unwrap(),
         ..Options::default()
     };
     let result = parse_and_serialize_with_options(" -  Item one\n     -  Nested", &options);
@@ -1966,7 +1966,7 @@ fn test_ordered_list_alternating_markers() {
     assert!(result.contains("2)  Nested second"), "got: {}", result);
 }
 
-use crate::{FenceChar, LeadingSpaces, MinFenceLength, TrailingSpaces};
+use crate::{FenceChar, IndentWidth, LeadingSpaces, MinFenceLength, TrailingSpaces};
 
 #[test]
 fn test_code_block_fence_char_backtick() {

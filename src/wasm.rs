@@ -7,8 +7,8 @@ use wasm_bindgen::prelude::*;
 
 use crate::Options;
 use crate::config::{
-    DashSetting, FenceChar, LeadingSpaces, MinFenceLength, OrderedListPad, OrderedMarker,
-    TrailingSpaces, UnorderedMarker,
+    DashSetting, FenceChar, IndentWidth, LeadingSpaces, MinFenceLength, OrderedListPad,
+    OrderedMarker, TrailingSpaces, UnorderedMarker,
 };
 
 /// JavaScript-friendly options struct.
@@ -161,7 +161,9 @@ impl JsOptions {
             }
         }
         if let Some(v) = self.indent_width {
-            opts.indent_width = v;
+            if let Ok(width) = IndentWidth::new(v) {
+                opts.indent_width = width;
+            }
         }
         if let Some(ref v) = self.odd_level_marker {
             opts.odd_level_marker = match v.as_str() {
@@ -182,7 +184,9 @@ impl JsOptions {
             };
         }
         if let Some(v) = self.ordered_list_indent_width {
-            opts.ordered_list_indent_width = v;
+            if let Ok(width) = IndentWidth::new(v) {
+                opts.ordered_list_indent_width = width;
+            }
         }
         if let Some(ref v) = self.fence_char {
             opts.fence_char = match v.as_str() {

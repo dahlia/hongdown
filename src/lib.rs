@@ -20,8 +20,8 @@ mod serializer;
 mod wasm;
 
 pub use config::{
-    DashSetting, FenceChar, LeadingSpaces, MinFenceLength, OrderedListPad, OrderedMarker,
-    TrailingSpaces, UnorderedMarker,
+    DashSetting, FenceChar, IndentWidth, LeadingSpaces, MinFenceLength, OrderedListPad,
+    OrderedMarker, TrailingSpaces, UnorderedMarker,
 };
 pub use serializer::Warning;
 pub use serializer::punctuation::{PunctuationError, validate_dash_settings};
@@ -70,7 +70,7 @@ pub struct Options {
     pub trailing_spaces: TrailingSpaces,
 
     /// Indentation width for nested list items. Default: 4.
-    pub indent_width: usize,
+    pub indent_width: IndentWidth,
 
     /// Marker style for ordered lists at odd nesting levels (1st, 3rd, etc.).
     /// Use `.` for `1.` or `)` for `1)`. Default: `.`.
@@ -84,7 +84,7 @@ pub struct Options {
     pub ordered_list_pad: OrderedListPad,
 
     /// Indentation width for nested ordered list items. Default: 4.
-    pub ordered_list_indent_width: usize,
+    pub ordered_list_indent_width: IndentWidth,
 
     /// Fence character for code blocks: `~` or `` ` ``. Default: `~`.
     pub fence_char: FenceChar,
@@ -159,11 +159,11 @@ impl Default for Options {
             unordered_marker: UnorderedMarker::default(),
             leading_spaces: LeadingSpaces::default(),
             trailing_spaces: TrailingSpaces::default(),
-            indent_width: 4,
+            indent_width: IndentWidth::default(),
             odd_level_marker: OrderedMarker::default(),
             even_level_marker: OrderedMarker::Parenthesis,
             ordered_list_pad: OrderedListPad::Start,
-            ordered_list_indent_width: 4,
+            ordered_list_indent_width: IndentWidth::default(),
             fence_char: FenceChar::default(),
             min_fence_length: MinFenceLength::default(),
             space_after_fence: true,

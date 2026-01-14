@@ -23,7 +23,7 @@ impl<'a> Serializer<'a> {
             Some(ListType::Ordered) => {
                 // Fixed width based on ordered_list_indent_width (default 4)
                 // e.g., "1.  " (4), "10. " (4), "100." (4, min 1 trailing space)
-                self.options.ordered_list_indent_width
+                self.options.ordered_list_indent_width.get()
             }
             None => 0,
         }
@@ -103,8 +103,8 @@ impl<'a> Serializer<'a> {
         // Level 2+: indent_width spaces per nesting level, then " -  " prefix
         // Use different indent_width for ordered vs unordered lists
         let indent_width = match self.list_type {
-            Some(ListType::Ordered) => self.options.ordered_list_indent_width,
-            _ => self.options.indent_width,
+            Some(ListType::Ordered) => self.options.ordered_list_indent_width.get(),
+            _ => self.options.indent_width.get(),
         };
         if self.list_depth > 1 {
             let indent = format!(
@@ -147,7 +147,7 @@ impl<'a> Serializer<'a> {
                 // Calculate trailing spaces to maintain fixed marker width
                 // marker_width = number + marker_char + trailing
                 // trailing = marker_width - number - 1 (minimum 1)
-                let marker_width = self.options.ordered_list_indent_width;
+                let marker_width = self.options.ordered_list_indent_width.get();
                 let trailing_count = marker_width.saturating_sub(current_num_width + 1).max(1);
 
                 self.output.push_str(&current_num);
@@ -181,7 +181,7 @@ impl<'a> Serializer<'a> {
                 }
                 Some(ListType::Ordered) => {
                     // For ordered lists in description details, still use full width
-                    self.options.ordered_list_indent_width
+                    self.options.ordered_list_indent_width.get()
                 }
                 None => 0,
             }
