@@ -1887,7 +1887,7 @@ fn test_list_leading_spaces_two() {
 #[test]
 fn test_list_trailing_spaces_one() {
     let options = Options {
-        trailing_spaces: 1,
+        trailing_spaces: TrailingSpaces::new(1).unwrap(),
         ..Options::default()
     };
     let result = parse_and_serialize_with_options(" -  Item one\n -  Item two", &options);
@@ -1897,7 +1897,7 @@ fn test_list_trailing_spaces_one() {
 #[test]
 fn test_list_trailing_spaces_three() {
     let options = Options {
-        trailing_spaces: 3,
+        trailing_spaces: TrailingSpaces::new(3).unwrap(),
         ..Options::default()
     };
     let result = parse_and_serialize_with_options(" -  Item one\n -  Item two", &options);
@@ -1966,7 +1966,7 @@ fn test_ordered_list_alternating_markers() {
     assert!(result.contains("2)  Nested second"), "got: {}", result);
 }
 
-use crate::{FenceChar, LeadingSpaces, MinFenceLength};
+use crate::{FenceChar, LeadingSpaces, MinFenceLength, TrailingSpaces};
 
 #[test]
 fn test_code_block_fence_char_backtick() {

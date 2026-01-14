@@ -8,7 +8,7 @@ use wasm_bindgen::prelude::*;
 use crate::Options;
 use crate::config::{
     DashSetting, FenceChar, LeadingSpaces, MinFenceLength, OrderedListPad, OrderedMarker,
-    UnorderedMarker,
+    TrailingSpaces, UnorderedMarker,
 };
 
 /// JavaScript-friendly options struct.
@@ -156,7 +156,9 @@ impl JsOptions {
             }
         }
         if let Some(v) = self.trailing_spaces {
-            opts.trailing_spaces = v;
+            if let Ok(trailing) = TrailingSpaces::new(v) {
+                opts.trailing_spaces = trailing;
+            }
         }
         if let Some(v) = self.indent_width {
             opts.indent_width = v;

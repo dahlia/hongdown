@@ -490,7 +490,7 @@ impl<'a> Serializer<'a> {
                 // Inside description details, add extra 5-space indent for `:    ` prefix.
                 // For unordered lists at top level, the marker is `-  ` (3 chars, no leading space).
                 // For nested lists, use the standard 4-char indent.
-                let first_level_marker_width = 1 + self.options.trailing_spaces; // `-` + trailing
+                let first_level_marker_width = 1 + self.options.trailing_spaces.get(); // `-` + trailing
                 let nested_indent = "    ".repeat(inner_list_depth.saturating_sub(1));
                 format!(
                     "     {}{}",

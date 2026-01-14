@@ -169,6 +169,51 @@ impl<'de> serde::Deserialize<'de> for LeadingSpaces {
     }
 }
 
+/// Trailing spaces after a list marker (0-3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrailingSpaces(usize);
+
+impl TrailingSpaces {
+    /// Maximum allowed trailing spaces (CommonMark requirement).
+    pub const MAX: usize = 3;
+
+    /// Create a new TrailingSpaces.
+    ///
+    /// Returns an error if the value is greater than 3.
+    pub fn new(value: usize) -> Result<Self, String> {
+        if value > Self::MAX {
+            Err(format!(
+                "trailing_spaces must be at most {}, got {}.",
+                Self::MAX,
+                value
+            ))
+        } else {
+            Ok(Self(value))
+        }
+    }
+
+    /// Get the inner value.
+    pub fn get(self) -> usize {
+        self.0
+    }
+}
+
+impl Default for TrailingSpaces {
+    fn default() -> Self {
+        Self(2)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for TrailingSpaces {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = usize::deserialize(deserializer)?;
+        Self::new(value).map_err(serde::de::Error::custom)
+    }
+}
+
 /// Unordered list formatting options.
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(default)]
@@ -180,7 +225,7 @@ pub struct UnorderedListConfig {
     pub leading_spaces: LeadingSpaces,
 
     /// Spaces after the marker (default: 2).
-    pub trailing_spaces: usize,
+    pub trailing_spaces: TrailingSpaces,
 
     /// Indentation width for nested items (default: 4).
     pub indent_width: usize,
@@ -191,7 +236,7 @@ impl Default for UnorderedListConfig {
         Self {
             unordered_marker: UnorderedMarker::default(),
             leading_spaces: LeadingSpaces::default(),
-            trailing_spaces: 2,
+            trailing_spaces: TrailingSpaces::default(),
             indent_width: 4,
         }
     }
@@ -693,7 +738,7 @@ mod tests {
             UnorderedMarker::Hyphen
         );
         assert_eq!(config.unordered_list.leading_spaces.get(), 1);
-        assert_eq!(config.unordered_list.trailing_spaces, 2);
+        assert_eq!(config.unordered_list.trailing_spaces.get(), 2);
         assert_eq!(config.unordered_list.indent_width, 4);
         assert_eq!(config.ordered_list.odd_level_marker, OrderedMarker::Period);
         assert_eq!(
@@ -825,7 +870,7 @@ indent_width = 2
             UnorderedMarker::Asterisk
         );
         assert_eq!(config.unordered_list.leading_spaces.get(), 0);
-        assert_eq!(config.unordered_list.trailing_spaces, 1);
+        assert_eq!(config.unordered_list.trailing_spaces.get(), 1);
         assert_eq!(config.unordered_list.indent_width, 2);
     }
 

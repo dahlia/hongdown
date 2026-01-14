@@ -18,7 +18,7 @@ impl<'a> Serializer<'a> {
         match self.list_type {
             Some(ListType::Bullet) => {
                 // " -  " = leading_spaces + 1 (marker) + trailing_spaces
-                self.options.leading_spaces.get() + 1 + self.options.trailing_spaces
+                self.options.leading_spaces.get() + 1 + self.options.trailing_spaces.get()
             }
             Some(ListType::Ordered) => {
                 // Fixed width based on ordered_list_indent_width (default 4)
@@ -121,7 +121,7 @@ impl<'a> Serializer<'a> {
             Some(ListType::Bullet) => {
                 let marker = self.options.unordered_marker.as_char();
                 let leading = " ".repeat(self.options.leading_spaces.get());
-                let trailing = " ".repeat(self.options.trailing_spaces);
+                let trailing = " ".repeat(self.options.trailing_spaces.get());
                 if self.in_description_details && self.list_depth == 1 {
                     // Inside description details at top level: "-  " (no leading space)
                     self.output.push(marker);
@@ -177,7 +177,7 @@ impl<'a> Serializer<'a> {
             match self.list_type {
                 Some(ListType::Bullet) => {
                     // "-  " = 1 (marker) + trailing_spaces (no leading space)
-                    1 + self.options.trailing_spaces
+                    1 + self.options.trailing_spaces.get()
                 }
                 Some(ListType::Ordered) => {
                     // For ordered lists in description details, still use full width

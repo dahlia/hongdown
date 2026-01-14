@@ -21,7 +21,7 @@ mod wasm;
 
 pub use config::{
     DashSetting, FenceChar, LeadingSpaces, MinFenceLength, OrderedListPad, OrderedMarker,
-    UnorderedMarker,
+    TrailingSpaces, UnorderedMarker,
 };
 pub use serializer::Warning;
 pub use serializer::punctuation::{PunctuationError, validate_dash_settings};
@@ -67,7 +67,7 @@ pub struct Options {
     pub leading_spaces: LeadingSpaces,
 
     /// Number of trailing spaces after the list marker. Default: 2.
-    pub trailing_spaces: usize,
+    pub trailing_spaces: TrailingSpaces,
 
     /// Indentation width for nested list items. Default: 4.
     pub indent_width: usize,
@@ -158,7 +158,7 @@ impl Default for Options {
             heading_common_nouns: Vec::new(),
             unordered_marker: UnorderedMarker::default(),
             leading_spaces: LeadingSpaces::default(),
-            trailing_spaces: 2,
+            trailing_spaces: TrailingSpaces::default(),
             indent_width: 4,
             odd_level_marker: OrderedMarker::default(),
             even_level_marker: OrderedMarker::Parenthesis,
