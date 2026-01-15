@@ -43,7 +43,6 @@ jobs:
     - uses: jdx/mise-action@v3
       with:
         cache_key_prefix: mise-v2
-    - uses: Swatinem/rust-cache@v2
     - run: mise run check
 
   test:
