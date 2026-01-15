@@ -22,6 +22,11 @@ fn default_git_aware() -> bool {
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Config {
+    /// Skip inheriting from parent configurations (default: false).
+    /// When true, only this config file and Hongdown's defaults are used.
+    #[serde(default)]
+    pub no_inherit: bool,
+
     /// Maximum line width for wrapping (default: 80).
     pub line_width: LineWidth,
 
@@ -58,6 +63,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            no_inherit: false,
             line_width: LineWidth::default(),
             include: Vec::new(),
             exclude: Vec::new(),
@@ -69,6 +75,102 @@ impl Default for Config {
             thematic_break: ThematicBreakConfig::default(),
             punctuation: PunctuationConfig::default(),
         }
+    }
+}
+
+/// A layer of configuration that may have some fields unset.
+///
+/// Used for merging multiple configuration sources with field-level overriding.
+/// This allows cascading configurations where later configs only override
+/// specific fields they define, preserving other fields from parent configs.
+#[derive(Debug, Clone, Deserialize, PartialEq, Default)]
+#[serde(default)]
+pub struct ConfigLayer {
+    /// Skip inheriting from parent configurations (default: false).
+    #[serde(default)]
+    pub no_inherit: bool,
+
+    /// Maximum line width for wrapping.
+    pub line_width: Option<LineWidth>,
+
+    /// Glob patterns for files to include.
+    pub include: Option<Vec<String>>,
+
+    /// Glob patterns for files to exclude.
+    pub exclude: Option<Vec<String>>,
+
+    /// Respect `.gitignore` files and skip `.git` directory.
+    pub git_aware: Option<bool>,
+
+    /// Heading formatting options.
+    pub heading: Option<HeadingConfig>,
+
+    /// Unordered list formatting options.
+    pub unordered_list: Option<UnorderedListConfig>,
+
+    /// Ordered list formatting options.
+    pub ordered_list: Option<OrderedListConfig>,
+
+    /// Code block formatting options.
+    pub code_block: Option<CodeBlockConfig>,
+
+    /// Thematic break (horizontal rule) formatting options.
+    pub thematic_break: Option<ThematicBreakConfig>,
+
+    /// Punctuation transformation options (SmartyPants-style).
+    pub punctuation: Option<PunctuationConfig>,
+}
+
+impl ConfigLayer {
+    /// Load a ConfigLayer from a TOML file.
+    ///
+    /// Returns an error if the file cannot be read or the TOML is invalid.
+    pub fn from_file(path: &Path) -> Result<Self, ConfigError> {
+        let content =
+            std::fs::read_to_string(path).map_err(|e| ConfigError::Io(path.to_path_buf(), e))?;
+        toml::from_str(&content).map_err(|e| ConfigError::Parse(path.to_path_buf(), e))
+    }
+
+    /// Merge this layer on top of a base Config.
+    ///
+    /// Fields set in this layer (Some(value)) override the corresponding
+    /// fields in the base config. Fields that are None preserve the base
+    /// config's values.
+    pub fn merge_over(self, mut base: Config) -> Config {
+        // Always update no_inherit from the layer
+        base.no_inherit = self.no_inherit;
+
+        if let Some(line_width) = self.line_width {
+            base.line_width = line_width;
+        }
+        if let Some(include) = self.include {
+            base.include = include;
+        }
+        if let Some(exclude) = self.exclude {
+            base.exclude = exclude;
+        }
+        if let Some(git_aware) = self.git_aware {
+            base.git_aware = git_aware;
+        }
+        if let Some(heading) = self.heading {
+            base.heading = heading;
+        }
+        if let Some(unordered_list) = self.unordered_list {
+            base.unordered_list = unordered_list;
+        }
+        if let Some(ordered_list) = self.ordered_list {
+            base.ordered_list = ordered_list;
+        }
+        if let Some(code_block) = self.code_block {
+            base.code_block = code_block;
+        }
+        if let Some(thematic_break) = self.thematic_break {
+            base.thematic_break = thematic_break;
+        }
+        if let Some(punctuation) = self.punctuation {
+            base.punctuation = punctuation;
+        }
+        base
     }
 }
 
@@ -863,6 +965,106 @@ impl Config {
             }
         }
         Ok(None)
+    }
+
+    /// Load cascading configuration from all sources.
+    ///
+    /// Returns the merged configuration and the path of the project config
+    /// (if found). Configurations are loaded and merged in this order:
+    /// 1. System config (`/etc/hongdown/config.toml`)
+    /// 2. User legacy config (`~/.hongdown.toml`)
+    /// 3. User XDG config (`$XDG_CONFIG_HOME/hongdown/config.toml`)
+    /// 4. Project config (`.hongdown.toml` in `start_dir` or parent directories)
+    ///
+    /// If the project config has `no_inherit = true`, all parent configs are
+    /// ignored.
+    pub fn load_cascading(start_dir: &Path) -> Result<(Self, Option<PathBuf>), ConfigError> {
+        let mut layers = Vec::new();
+        let mut project_config_path = None;
+
+        // 1. Try system-wide config: /etc/hongdown/config.toml
+        if let Some(layer) = Self::load_system_config()? {
+            layers.push(layer);
+        }
+
+        // 2. Try user legacy config: ~/.hongdown.toml
+        if let Some(layer) = Self::load_user_legacy_config()? {
+            layers.push(layer);
+        }
+
+        // 3. Try XDG user config: $XDG_CONFIG_HOME/hongdown/config.toml
+        if let Some(layer) = Self::load_user_xdg_config()? {
+            layers.push(layer);
+        }
+
+        // 4. Try project config: search upward from start_dir
+        if let Some((path, layer)) = Self::discover_project_config(start_dir)? {
+            project_config_path = Some(path);
+
+            // If no_inherit is true, skip all parent layers
+            if layer.no_inherit {
+                layers.clear();
+            }
+
+            layers.push(layer);
+        }
+
+        // Merge all layers, starting from Config::default()
+        let mut config = Self::default();
+        for layer in layers {
+            config = layer.merge_over(config);
+        }
+
+        Ok((config, project_config_path))
+    }
+
+    /// Load system-wide config from /etc/hongdown/config.toml.
+    fn load_system_config() -> Result<Option<ConfigLayer>, ConfigError> {
+        Self::try_load_layer(Path::new("/etc/hongdown/config.toml"))
+    }
+
+    /// Load user legacy config from ~/.hongdown.toml.
+    fn load_user_legacy_config() -> Result<Option<ConfigLayer>, ConfigError> {
+        if let Some(home) = dirs::home_dir() {
+            Self::try_load_layer(&home.join(".hongdown.toml"))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Load user XDG config from $XDG_CONFIG_HOME/hongdown/config.toml.
+    fn load_user_xdg_config() -> Result<Option<ConfigLayer>, ConfigError> {
+        if let Some(config_dir) = dirs::config_dir() {
+            Self::try_load_layer(&config_dir.join("hongdown/config.toml"))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Discover project config by searching upward from start_dir.
+    fn discover_project_config(
+        start_dir: &Path,
+    ) -> Result<Option<(PathBuf, ConfigLayer)>, ConfigError> {
+        let mut current = start_dir.to_path_buf();
+        loop {
+            let config_path = current.join(CONFIG_FILE_NAME);
+            if config_path.exists() {
+                let layer = ConfigLayer::from_file(&config_path)?;
+                return Ok(Some((config_path, layer)));
+            }
+            if !current.pop() {
+                break;
+            }
+        }
+        Ok(None)
+    }
+
+    /// Try to load a config layer from a path. Returns None if file doesn't exist.
+    fn try_load_layer(path: &Path) -> Result<Option<ConfigLayer>, ConfigError> {
+        if !path.exists() {
+            return Ok(None);
+        }
+        ConfigLayer::from_file(path).map(Some)
     }
 
     /// Collect files matching the include patterns, excluding those matching
@@ -2243,5 +2445,297 @@ indent_width = 0
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("indent_width must be at least 1"));
+    }
+}
+
+#[cfg(test)]
+mod config_layer_tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_config_layer_from_file_empty() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join(".hongdown.toml");
+        std::fs::write(&config_path, "").unwrap();
+
+        let layer = ConfigLayer::from_file(&config_path).unwrap();
+        assert_eq!(layer, ConfigLayer::default());
+    }
+
+    #[test]
+    fn test_config_layer_from_file_partial() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join(".hongdown.toml");
+        std::fs::write(
+            &config_path,
+            r#"
+line_width = 100
+git_aware = false
+"#,
+        )
+        .unwrap();
+
+        let layer = ConfigLayer::from_file(&config_path).unwrap();
+        assert_eq!(layer.line_width, Some(LineWidth::new(100).unwrap()));
+        assert_eq!(layer.git_aware, Some(false));
+        assert_eq!(layer.include, None);
+        assert_eq!(layer.heading, None);
+    }
+
+    #[test]
+    fn test_config_layer_from_file_no_inherit() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join(".hongdown.toml");
+        std::fs::write(
+            &config_path,
+            r#"
+no_inherit = true
+line_width = 100
+"#,
+        )
+        .unwrap();
+
+        let layer = ConfigLayer::from_file(&config_path).unwrap();
+        assert_eq!(layer.no_inherit, true);
+        assert_eq!(layer.line_width, Some(LineWidth::new(100).unwrap()));
+    }
+
+    #[test]
+    fn test_config_layer_from_file_not_found() {
+        let result = ConfigLayer::from_file(Path::new("/nonexistent/.hongdown.toml"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_layer_merge_simple_fields() {
+        let base = Config {
+            line_width: LineWidth::new(80).unwrap(),
+            git_aware: true,
+            ..Config::default()
+        };
+
+        let layer = ConfigLayer {
+            line_width: Some(LineWidth::new(100).unwrap()),
+            git_aware: Some(false),
+            ..ConfigLayer::default()
+        };
+
+        let merged = layer.merge_over(base);
+        assert_eq!(merged.line_width.get(), 100);
+        assert_eq!(merged.git_aware, false);
+    }
+
+    #[test]
+    fn test_config_layer_merge_preserves_unset() {
+        let base = Config {
+            line_width: LineWidth::new(120).unwrap(),
+            git_aware: false,
+            include: vec!["*.md".to_string()],
+            ..Config::default()
+        };
+
+        let layer = ConfigLayer {
+            line_width: Some(LineWidth::new(100).unwrap()),
+            // git_aware and include are None, should preserve base
+            ..ConfigLayer::default()
+        };
+
+        let merged = layer.merge_over(base);
+        assert_eq!(merged.line_width.get(), 100);
+        assert_eq!(merged.git_aware, false); // Preserved
+        assert_eq!(merged.include, vec!["*.md".to_string()]); // Preserved
+    }
+
+    #[test]
+    fn test_config_layer_merge_nested_structs() {
+        let base = Config {
+            heading: HeadingConfig {
+                setext_h1: true,
+                setext_h2: true,
+                sentence_case: false,
+                proper_nouns: vec!["Rust".to_string()],
+                common_nouns: Vec::new(),
+            },
+            ..Config::default()
+        };
+
+        let layer = ConfigLayer {
+            heading: Some(HeadingConfig {
+                setext_h1: false,
+                setext_h2: false,
+                sentence_case: true,
+                proper_nouns: vec!["Python".to_string()],
+                common_nouns: Vec::new(),
+            }),
+            ..ConfigLayer::default()
+        };
+
+        let merged = layer.merge_over(base);
+        assert_eq!(merged.heading.setext_h1, false);
+        assert_eq!(merged.heading.setext_h2, false);
+        assert_eq!(merged.heading.sentence_case, true);
+        assert_eq!(merged.heading.proper_nouns, vec!["Python".to_string()]);
+    }
+
+    #[test]
+    fn test_config_layer_merge_vec_replacement() {
+        let base = Config {
+            include: vec!["*.md".to_string(), "*.txt".to_string()],
+            exclude: vec!["test/**".to_string()],
+            ..Config::default()
+        };
+
+        let layer = ConfigLayer {
+            include: Some(vec!["docs/*.md".to_string()]),
+            // exclude is None, should preserve base
+            ..ConfigLayer::default()
+        };
+
+        let merged = layer.merge_over(base);
+        assert_eq!(merged.include, vec!["docs/*.md".to_string()]);
+        assert_eq!(merged.exclude, vec!["test/**".to_string()]); // Preserved
+    }
+}
+
+#[cfg(test)]
+mod cascading_config_tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_try_load_layer_file_exists() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join(".hongdown.toml");
+        std::fs::write(
+            &config_path,
+            r#"
+line_width = 100
+"#,
+        )
+        .unwrap();
+
+        let layer = Config::try_load_layer(&config_path).unwrap();
+        assert!(layer.is_some());
+        assert_eq!(
+            layer.unwrap().line_width,
+            Some(LineWidth::new(100).unwrap())
+        );
+    }
+
+    #[test]
+    fn test_try_load_layer_file_not_exists() {
+        let result = Config::try_load_layer(Path::new("/nonexistent/.hongdown.toml")).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_discover_project_config() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent = temp_dir.path();
+        let child = parent.join("project");
+        std::fs::create_dir(&child).unwrap();
+
+        let config_path = parent.join(".hongdown.toml");
+        std::fs::write(&config_path, "line_width = 100").unwrap();
+
+        let result = Config::discover_project_config(&child).unwrap();
+        assert!(result.is_some());
+        let (path, layer) = result.unwrap();
+        assert_eq!(path, config_path);
+        assert_eq!(layer.line_width, Some(LineWidth::new(100).unwrap()));
+    }
+
+    #[test]
+    fn test_discover_project_config_not_found() {
+        let temp_dir = TempDir::new().unwrap();
+        let result = Config::discover_project_config(temp_dir.path()).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_load_cascading_project_only() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join(".hongdown.toml");
+        std::fs::write(&config_path, "line_width = 100").unwrap();
+
+        let (config, path) = Config::load_cascading(temp_dir.path()).unwrap();
+        assert_eq!(path, Some(config_path));
+        assert_eq!(config.line_width.get(), 100);
+    }
+
+    #[test]
+    fn test_load_cascading_no_config() {
+        let temp_dir = TempDir::new().unwrap();
+        let (config, path) = Config::load_cascading(temp_dir.path()).unwrap();
+        assert_eq!(path, None);
+        assert_eq!(config, Config::default());
+    }
+
+    #[test]
+    fn test_load_cascading_with_no_inherit() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join(".hongdown.toml");
+
+        // Config with no_inherit = true, line_width = 100
+        std::fs::write(
+            &config_path,
+            r#"
+no_inherit = true
+line_width = 100
+"#,
+        )
+        .unwrap();
+
+        let (config, _) = Config::load_cascading(temp_dir.path()).unwrap();
+
+        // Should use config's values, ignoring any system/user configs
+        assert_eq!(config.line_width.get(), 100);
+        assert_eq!(config.no_inherit, true);
+    }
+
+    #[test]
+    fn test_load_cascading_nearest_project_config() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent = temp_dir.path();
+        let child = parent.join("project");
+        std::fs::create_dir(&child).unwrap();
+
+        // Parent config: line_width = 120
+        std::fs::write(parent.join(".hongdown.toml"), "line_width = 120").unwrap();
+
+        // Child config: line_width = 100
+        std::fs::write(child.join(".hongdown.toml"), "line_width = 100").unwrap();
+
+        let (config, path) = Config::load_cascading(&child).unwrap();
+
+        // Should use nearest (child) config, parent config is ignored
+        assert_eq!(config.line_width.get(), 100);
+        assert_eq!(path, Some(child.join(".hongdown.toml")));
+    }
+
+    #[test]
+    fn test_load_cascading_searches_parent_dirs() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent = temp_dir.path();
+        let child = parent.join("project");
+        std::fs::create_dir(&child).unwrap();
+
+        // Only parent has config
+        std::fs::write(
+            parent.join(".hongdown.toml"),
+            r#"
+line_width = 120
+git_aware = false
+"#,
+        )
+        .unwrap();
+
+        let (config, path) = Config::load_cascading(&child).unwrap();
+
+        // Should find parent's config when searching from child
+        assert_eq!(config.line_width.get(), 120);
+        assert_eq!(config.git_aware, false);
+        assert_eq!(path, Some(parent.join(".hongdown.toml")));
     }
 }

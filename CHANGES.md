@@ -6,8 +6,44 @@ Version 0.3.0
 
 To be released.
 
+ -  Added support for cascading configuration files from multiple locations.
+    Hongdown now loads and merges configuration files in the following order
+    (lowest to highest priority): [[#15]]
+
+    1)  System-wide: */etc/hongdown/config.toml* (Linux/Unix only)
+    2)  User (legacy): *~/.hongdown.toml* (all platforms)
+    3)  User (platform-specific):
+         -  Linux: *$XDG\_CONFIG\_HOME/hongdown/config.toml* or
+            *~/.config/hongdown/config.toml*
+         -  macOS: *~/Library/Application Support/hongdown/config.toml*
+         -  Windows: `%APPDATA%\hongdown\config.toml`
+    4)  Project: *.hongdown.toml* in current or parent directories
+
+    Settings from higher-priority configurations override those from
+    lower-priority ones, allowing you to set global defaults at the user or
+    system level while overriding them for specific projects.
+
+    For example, you can set your preferred `line_width = 72` in
+    *~/.hongdown.toml*, and most projects will inherit this setting.  Projects
+    that need a different width can override it in their *.hongdown.toml*.
+
+    To prevent a project from inheriting system or user configurations, add
+    `no_inherit = true` to the project's *.hongdown.toml*:
+
+    ~~~~ toml
+    no_inherit = true
+    line_width = 100
+    ~~~~
+
+    This ensures the project uses only its own settings plus Hongdown's
+    defaults, regardless of system or user preferences.  This is useful for
+    projects with strict formatting requirements.
+
+    The `--config` flag continues to work as before, bypassing the cascading
+    system and using only the specified file.
+
  -  Added `git_aware` configuration option (default: `true`).  When enabled,
-    Hongdown respects `.gitignore` files and automatically skips the `.git`
+    Hongdown respects _.gitignore_ files and automatically skips the `.git`
     directory during file collection.  This is particularly useful when using
     `include` patterns like `**/*.md` to avoid formatting files that are
     intentionally ignored by Git.  Set `git_aware = false` in your
@@ -73,6 +109,7 @@ To be released.
 [`ignore`]: https://crates.io/crates/ignore
 [`glob`]: https://crates.io/crates/glob
 [#14]: https://github.com/dahlia/hongdown/issues/14
+[#15]: https://github.com/dahlia/hongdown/issues/15
 [#16]: https://github.com/dahlia/hongdown/pull/16
 
 

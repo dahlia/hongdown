@@ -749,3 +749,240 @@ fn main() {}
         assert_eq!(result, "~~~~ text\nHELLO\n~~~~\n");
     }
 }
+
+// ============================================================================
+// Cascading configuration integration tests
+// ============================================================================
+
+#[cfg(not(target_arch = "wasm32"))]
+mod cascading_config_integration_tests {
+    use std::fs;
+    use std::path::Path;
+    use std::process::Command;
+    use tempfile::TempDir;
+
+    /// Helper to create a config file with given content.
+    fn create_config(dir: &Path, content: &str) {
+        let config_path = dir.join(".hongdown.toml");
+        fs::write(&config_path, content).unwrap();
+    }
+
+    /// Helper to create a test markdown file.
+    fn create_markdown_file(dir: &Path, filename: &str, content: &str) {
+        let file_path = dir.join(filename);
+        fs::write(&file_path, content).unwrap();
+    }
+
+    /// Helper to run hongdown on a file and return the output.
+    fn run_hongdown(markdown_path: &Path) -> String {
+        let output = Command::new(env!("CARGO_BIN_EXE_hongdown"))
+            .arg(markdown_path)
+            .current_dir(markdown_path.parent().unwrap())
+            .output()
+            .expect("Failed to execute hongdown");
+
+        assert!(
+            output.status.success(),
+            "hongdown failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        String::from_utf8(output.stdout).unwrap()
+    }
+
+    /// Test that project config is used when present.
+    #[test]
+    fn test_project_config_priority() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create project config with line_width = 40
+        create_config(
+            temp_dir.path(),
+            r#"
+line_width = 40
+"#,
+        );
+
+        // Create a markdown file with long line
+        create_markdown_file(
+            temp_dir.path(),
+            "test.md",
+            "This is a very long line that should definitely be wrapped at 40 characters if the config is applied correctly.",
+        );
+
+        let markdown_path = temp_dir.path().join("test.md");
+        let result = run_hongdown(&markdown_path);
+
+        // Verify line wrapping occurred (multiple lines in output)
+        let lines: Vec<&str> = result.lines().collect();
+        assert!(
+            lines.len() > 1,
+            "Line should be wrapped with line_width = 40"
+        );
+        for line in &lines {
+            assert!(
+                line.len() <= 42, // Allow slight overflow for words
+                "Line should not exceed ~40 characters: {}",
+                line
+            );
+        }
+    }
+
+    /// Test that nearest project config is used (parent configs ignored).
+    #[test]
+    fn test_nearest_project_config_used() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent = temp_dir.path();
+        let child = parent.join("project");
+        fs::create_dir(&child).unwrap();
+
+        // Parent config: line_width = 40
+        create_config(parent, "line_width = 40");
+
+        // Child config: line_width = 120 (nearest config takes precedence)
+        create_config(&child, "line_width = 120");
+
+        // Create a markdown file with long line in child directory
+        create_markdown_file(
+            &child,
+            "test.md",
+            "This is a very long line that should not be wrapped because the nearest config has line_width = 120.",
+        );
+
+        let markdown_path = child.join("test.md");
+        let result = run_hongdown(&markdown_path);
+
+        // Verify line was NOT wrapped (nearest config should be used)
+        let lines: Vec<&str> = result.lines().collect();
+        assert_eq!(
+            lines.len(),
+            1,
+            "Line should not be wrapped with line_width = 120 from nearest config"
+        );
+    }
+
+    /// Test that explicit --config bypasses cascading.
+    #[test]
+    fn test_explicit_config_bypasses_cascading() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create project config with line_width = 40
+        create_config(temp_dir.path(), "line_width = 40");
+
+        // Create separate explicit config with line_width = 120
+        let explicit_config_path = temp_dir.path().join("custom.toml");
+        fs::write(&explicit_config_path, "line_width = 120").unwrap();
+
+        // Create markdown file with long line
+        create_markdown_file(
+            temp_dir.path(),
+            "test.md",
+            "This is a very long line that should not be wrapped because we're using explicit config with line_width = 120.",
+        );
+
+        let markdown_path = temp_dir.path().join("test.md");
+
+        // Run with explicit config
+        let output = Command::new(env!("CARGO_BIN_EXE_hongdown"))
+            .arg("--config")
+            .arg(&explicit_config_path)
+            .arg(&markdown_path)
+            .current_dir(temp_dir.path())
+            .output()
+            .expect("Failed to execute hongdown");
+
+        assert!(
+            output.status.success(),
+            "hongdown failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let result = String::from_utf8(output.stdout).unwrap();
+
+        // Verify line was NOT wrapped (explicit config should override project config)
+        let lines: Vec<&str> = result.lines().collect();
+        assert_eq!(
+            lines.len(),
+            1,
+            "Line should not be wrapped with explicit config line_width = 120"
+        );
+    }
+
+    /// Test that config is discovered from parent directories.
+    #[test]
+    fn test_config_discovered_from_parent() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent = temp_dir.path();
+        let child = parent.join("subdir");
+        fs::create_dir(&child).unwrap();
+
+        // Only parent has config with line_width = 40
+        create_config(parent, "line_width = 40");
+
+        // Create markdown file in child directory (no config there)
+        create_markdown_file(
+            &child,
+            "test.md",
+            "This is a very long line that should be wrapped because config is discovered from parent directory.",
+        );
+
+        let markdown_path = child.join("test.md");
+        let result = run_hongdown(&markdown_path);
+
+        // Verify line was wrapped (parent config should be found)
+        let lines: Vec<&str> = result.lines().collect();
+        assert!(
+            lines.len() > 1,
+            "Line should be wrapped using parent directory config"
+        );
+    }
+
+    /// Test end-to-end formatting with cascading configs.
+    #[test]
+    fn test_cascading_config_formatting() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create config with specific formatting options
+        create_config(
+            temp_dir.path(),
+            r#"
+line_width = 80
+
+[heading]
+setext_h1 = true
+setext_h2 = false
+
+[unordered_list]
+unordered_marker = "*"
+"#,
+        );
+
+        // Create markdown file with various elements
+        create_markdown_file(
+            temp_dir.path(),
+            "test.md",
+            r#"# Main Title
+
+## Subsection
+
+ -  First item
+ -  Second item
+"#,
+        );
+
+        let markdown_path = temp_dir.path().join("test.md");
+        let result = run_hongdown(&markdown_path);
+
+        // Verify formatting rules from config are applied
+        assert!(result.contains("Main Title\n="), "H1 should use setext");
+        assert!(result.contains("## Subsection"), "H2 should use ATX");
+        assert!(
+            result.contains(" *  First item"),
+            "List should use * marker"
+        );
+        assert!(
+            result.contains(" *  Second item"),
+            "List should use * marker"
+        );
+    }
+}

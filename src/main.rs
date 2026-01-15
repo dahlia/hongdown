@@ -384,13 +384,17 @@ fn collect_md_files(dir: &Path) -> Vec<PathBuf> {
 /// Returns the configuration and the base directory for glob patterns.
 ///
 /// Priority:
-/// 1. Explicit `--config` path
-/// 2. Auto-discovered `.hongdown.toml` in current or parent directories
+/// 1. Explicit `--config` path (bypasses cascading)
+/// 2. Cascading configuration:
+///    - System config: `/etc/hongdown/config.toml`
+///    - User legacy config: `~/.hongdown.toml`
+///    - User XDG config: `$XDG_CONFIG_HOME/hongdown/config.toml`
+///    - Project config: `.hongdown.toml` in current or parent directories
 /// 3. Default configuration
 fn load_config(args: &Args) -> (Config, PathBuf) {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
 
-    // If explicit config path is provided, use it
+    // If explicit config path is provided, use it without cascading
     if let Some(config_path) = &args.config {
         match Config::from_file(config_path) {
             Ok(config) => {
@@ -407,16 +411,14 @@ fn load_config(args: &Args) -> (Config, PathBuf) {
         }
     }
 
-    // Try to auto-discover config file from current directory
-    match Config::discover(&cwd) {
-        Ok(Some((path, config))) => {
-            let config_dir = path
-                .parent()
-                .map(|p| p.to_path_buf())
+    // Use cascading config loading from all sources
+    match Config::load_cascading(&cwd) {
+        Ok((config, maybe_project_path)) => {
+            let config_dir = maybe_project_path
+                .and_then(|p| p.parent().map(|p| p.to_path_buf()))
                 .unwrap_or_else(|| cwd.clone());
             (config, config_dir)
         }
-        Ok(None) => (Config::default(), cwd),
         Err(e) => {
             eprintln!("Warning: {}", e);
             (Config::default(), cwd)

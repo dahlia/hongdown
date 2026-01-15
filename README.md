@@ -161,9 +161,43 @@ These directives are merged with configuration file settings.
 
 ### Configuration file
 
-Hongdown looks for a *.hongdown.toml* file in the current directory and
-parent directories.  You can also specify a configuration file explicitly
-with the `--config` option.
+Hongdown supports cascading configuration files from multiple locations.
+Configuration files are loaded and merged in the following order (lowest to
+highest priority):
+
+1.  **System-wide**: */etc/hongdown/config.toml* (Linux/Unix only)
+2.  **User (legacy)**: *~/.hongdown.toml* (all platforms)
+3.  **User (platform-specific)**:
+     -  Linux: *$XDG\_CONFIG\_HOME/hongdown/config.toml* or
+        *~/.config/hongdown/config.toml*
+     -  macOS: *~/Library/Application Support/hongdown/config.toml*
+     -  Windows: `%APPDATA%\hongdown\config.toml`
+4.  **Project**: *.hongdown.toml* in the current directory or any parent
+    directory
+
+Settings from higher-priority configurations override those from lower-priority
+ones.  This allows you to set global defaults at the user or system level while
+overriding them for specific projects.
+
+You can also specify a configuration file explicitly with the `--config` option,
+which bypasses the cascading system and uses only that file.
+
+#### Disabling configuration inheritance
+
+To ignore all system and user configurations and use only your project config:
+
+~~~~ toml
+no_inherit = true
+
+# Your project-specific settings
+line_width = 100
+~~~~
+
+When `no_inherit = true`, only the project config and Hongdown's defaults are
+used.  This is useful for projects that need strict formatting control
+regardless of user preferences.
+
+#### Configuration options
 
 Below is an example configuration with all available options and their
 default values:
