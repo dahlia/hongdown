@@ -488,40 +488,16 @@ formatter (contributed by [Lee Dogeon][moreal zed]):
 If you use [none-ls.nvim] (a community-maintained fork of *null-ls.nvim*), you
 can register Hongdown as a formatter (contributed by [Vladimir Rubin]):
 
-~~~~ lua
-local null_ls = require("null-ls")
-local hongdown = {
-    name = "hongdown",
-    method = null_ls.methods.FORMATTING,
-    filetypes = { "markdown" },
-    generator = null_ls.generator({
-        command = "hongdown",
-        args = { "--stdin" },
-        to_stdin = true,
-        from_stderr = false,
-        format = "raw",
-        check_exit_code = function(code, stderr)
-            local success = code <= 1
-            if not success then
-                print(stderr)
-            end
-            return success
-        end,
-        on_output = function(params, done)
-            local output = params.output
-            if not output then
-                return done()
-            end
-            return done({ { text = output } })
-        end,
-    }),
-}
+(requires [none-ls-extras.nvim])
 
+~~~~ lua
+local hongdown = require('none-ls.formatting.hongdown')
 null_ls.register(hongdown)
 ~~~~
 
 [none-ls.nvim]: https://github.com/nvimtools/none-ls.nvim
 [Vladimir Rubin]: https://github.com/dahlia/hongdown/issues/4
+[none-ls-extras.nvim]: https://github.com/nvimtools/none-ls-extras.nvim
 
 ### Helix
 
