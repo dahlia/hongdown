@@ -1,0 +1,74 @@
+{
+  "name": "hongdown-vscode",
+  "displayName": "Hongdown",
+  "description": "Markdown formatter that enforces Hong Minhee's Markdown style conventions",
+  "version": "0.0.0",
+  "publisher": "hongdown",
+  "license": "GPL-3.0-or-later",
+  "author": "Hong Minhee <hong@minhee.org>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dahlia/hongdown.git",
+    "directory": "packages/vscode"
+  },
+  "homepage": "https://github.com/dahlia/hongdown",
+  "bugs": {
+    "url": "https://github.com/dahlia/hongdown/issues"
+  },
+  "engines": {
+    "vscode": "^1.108.0"
+  },
+  "categories": [
+    "Formatters"
+  ],
+  "keywords": [
+    "markdown",
+    "formatter",
+    "style"
+  ],
+  "activationEvents": [
+    "onLanguage:markdown"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Hongdown",
+      "properties": {
+        "hongdown.disable": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disable Hongdown formatter. When enabled, Hongdown will not appear in 'Format Document With...' menu."
+        },
+        "hongdown.path": {
+          "type": "string",
+          "default": "",
+          "description": "Path to hongdown executable. Leave empty to use PATH."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "rolldown -c",
+    "watch": "rolldown -c --watch",
+    "pretest": "pnpm run build",
+    "test": "node ./dist/test/runTest.js",
+    "package": "pnpm vsce package --no-dependencies",
+    "prepackage": "pnpm run build",
+    "prepublishOnly": "pnpm run build"
+  },
+  "devDependencies": {
+    "@types/glob": "^8.1.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.19.6",
+    "@types/vscode": "^1.108.1",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.7.1",
+    "glob": "^11.1.0",
+    "mocha": "^10.8.2",
+    "rolldown": "^1.0.0-beta.60",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@logtape/logtape": "^2.0.0"
+  }
+}
