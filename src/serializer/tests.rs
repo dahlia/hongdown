@@ -4383,3 +4383,36 @@ fn test_serialize_windows_path_plain_text() {
     let result = parse_and_serialize_with_source(input);
     assert_eq!(result, "C:\\\\Users\\\\Alice\\\\Documents\n");
 }
+
+// Regression test: code blocks inside footnotes should be preserved
+#[test]
+fn test_footnote_with_code_block() {
+    let input = r#"Testing a footnote with a code block.[^1]
+
+[^1]: Here is a code block inside a footnote:
+
+      ~~~~ python
+      def hello_world():
+          print("Hello, world!")
+      ~~~~
+"#;
+    let result = parse_and_serialize_with_footnotes(input);
+
+    // The code block should be preserved in the output
+    assert!(
+        result.contains("def hello_world():"),
+        "Code block content should be preserved in footnote.\nGot:\n{}",
+        result
+    );
+    assert!(
+        result.contains("~~~~"),
+        "Code fence should be preserved in footnote.\nGot:\n{}",
+        result
+    );
+    // The blank line between text and code block should be preserved
+    assert!(
+        result.contains("footnote:\n\n"),
+        "Blank line between text and code block should be preserved.\nGot:\n{}",
+        result
+    );
+}

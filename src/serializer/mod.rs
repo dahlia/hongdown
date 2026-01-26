@@ -405,6 +405,26 @@ impl<'a> Serializer<'a> {
         // Continuation indent matches prefix length for alignment
         let continuation_indent = " ".repeat(prefix.len());
 
+        // If footnote has block elements, output pre-serialized content with indentation
+        if footnote.has_blocks {
+            let lines: Vec<&str> = footnote.content.lines().collect();
+            for (i, line) in lines.iter().enumerate() {
+                if i == 0 {
+                    self.output.push_str(&prefix);
+                    self.output.push_str(line);
+                } else if line.is_empty() {
+                    // Empty line - just add newline
+                    self.output.push_str("");
+                } else {
+                    // Add continuation indent
+                    self.output.push_str(&continuation_indent);
+                    self.output.push_str(line);
+                }
+                self.output.push('\n');
+            }
+            return;
+        }
+
         // Wrap content at 80 chars, accounting for prefix on first line
         let first_line_width = 80 - prefix.width();
         let continuation_width = 80 - continuation_indent.len();
@@ -456,6 +476,104 @@ impl<'a> Serializer<'a> {
                 self.output.push_str(line);
             }
             self.output.push('\n');
+        }
+    }
+
+    /// Serialize footnote content that contains block elements.
+    /// Returns the serialized content without the footnote prefix.
+    fn serialize_footnote_blocks<'b>(&mut self, node: &'b AstNode<'b>) -> String {
+        let mut result = String::new();
+        let mut first_block = true;
+
+        for child in node.children() {
+            let block_content = self.serialize_single_block(child);
+
+            if !first_block && !block_content.is_empty() {
+                // Add blank line between blocks (need two newlines for a blank line)
+                result.push_str("\n\n");
+            }
+            result.push_str(&block_content);
+            first_block = false;
+        }
+
+        result.trim_end().to_string()
+    }
+
+    /// Serialize a single block element for footnote content.
+    fn serialize_single_block<'b>(&mut self, node: &'b AstNode<'b>) -> String {
+        match &node.data.borrow().value {
+            NodeValue::Paragraph => {
+                let mut content = String::new();
+                for child in node.children() {
+                    self.collect_inline_node(child, &mut content);
+                }
+                // Replace SoftBreak marker with space
+                content.replace('\x00', " ").trim().to_string()
+            }
+            NodeValue::CodeBlock(code_block) => {
+                let mut output = String::new();
+                // Use the same fence style as the main serializer
+                let fence_char = self.options.fence_char.as_char();
+                let min_len = self.options.min_fence_length.get();
+                let fence_len = std::cmp::max(min_len, 4);
+                let fence: String = std::iter::repeat_n(fence_char, fence_len).collect();
+
+                output.push_str(&fence);
+                if !code_block.info.is_empty() {
+                    output.push(' ');
+                    output.push_str(&code_block.info);
+                }
+                output.push('\n');
+                output.push_str(&code_block.literal);
+                if !code_block.literal.ends_with('\n') {
+                    output.push('\n');
+                }
+                output.push_str(&fence);
+                output
+            }
+            NodeValue::BlockQuote => {
+                // Recursively serialize block quote content
+                let mut inner = String::new();
+                for child in node.children() {
+                    let block = self.serialize_single_block(child);
+                    if !inner.is_empty() {
+                        inner.push('\n');
+                    }
+                    inner.push_str(&block);
+                }
+                // Prefix each line with "> "
+                inner
+                    .lines()
+                    .map(|line| {
+                        if line.is_empty() {
+                            ">".to_string()
+                        } else {
+                            format!("> {}", line)
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            }
+            NodeValue::List(_) => {
+                // For lists, use the existing serializer by creating a temporary output
+                let old_output = std::mem::take(&mut self.output);
+                self.serialize_node(node);
+                let list_output = std::mem::replace(&mut self.output, old_output);
+                list_output.trim_end().to_string()
+            }
+            NodeValue::Table(_) => {
+                // For tables, use the existing serializer
+                let old_output = std::mem::take(&mut self.output);
+                self.serialize_node(node);
+                let table_output = std::mem::replace(&mut self.output, old_output);
+                table_output.trim_end().to_string()
+            }
+            _ => {
+                // For other nodes, try to collect inline content
+                let mut content = String::new();
+                self.collect_inline_node(node, &mut content);
+                content.trim().to_string()
+            }
         }
     }
 
@@ -591,20 +709,42 @@ impl<'a> Serializer<'a> {
                     .footnotes
                     .get_reference_line(&footnote_def.name)
                     .unwrap_or(0);
+
+                // Check if footnote contains block elements (code blocks, lists, etc.)
+                let has_blocks = node.children().any(|child| {
+                    matches!(
+                        &child.data.borrow().value,
+                        NodeValue::CodeBlock(_)
+                            | NodeValue::BlockQuote
+                            | NodeValue::List(_)
+                            | NodeValue::Table(_)
+                    )
+                });
+
                 // Collect content from children
                 // Set flag so references within footnotes go to pending_footnote_references
                 // Also set the current footnote's reference line for proper flush timing
                 self.footnotes.start_collecting(reference_line);
-                let mut content = String::new();
-                for child in node.children() {
-                    self.collect_inline_node(child, &mut content);
-                }
+
+                let content = if has_blocks {
+                    // Serialize block elements properly
+                    self.serialize_footnote_blocks(node)
+                } else {
+                    // Simple inline content - use existing approach
+                    let mut content = String::new();
+                    for child in node.children() {
+                        self.collect_inline_node(child, &mut content);
+                    }
+                    content.trim().to_string()
+                };
+
                 self.footnotes.stop_collecting();
                 // Add to pending footnotes (will be flushed at section end)
                 self.footnotes.add(
                     footnote_def.name.clone(),
-                    content.trim().to_string(),
+                    content,
                     reference_line,
+                    has_blocks,
                 );
             }
             _ => {

@@ -7,6 +7,17 @@ Version 0.4.0
 To be released.
 
 
+Version 0.3.1
+-------------
+
+Released on January 26, 2026.
+
+ -  Fixed a bug where code blocks inside footnotes were being silently dropped
+    during formatting.  The formatter now properly preserves block elements
+    (code blocks, block quotes, lists, tables) within footnote definitions,
+    outputting them with correct indentation.
+
+
 Version 0.3.0
 -------------
 

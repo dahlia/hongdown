@@ -105,6 +105,9 @@ pub struct FootnoteDefinition {
     pub content: String,
     /// Line number where the footnote was referenced (1-indexed)
     pub reference_line: usize,
+    /// Whether the footnote contains block elements (code blocks, etc.)
+    /// When true, content contains pre-serialized block content with proper indentation.
+    pub has_blocks: bool,
 }
 
 /// Manages footnote definitions and their reference tracking.
@@ -142,13 +145,14 @@ impl FootnoteSet {
     }
 
     /// Add a footnote definition.
-    pub fn add(&mut self, name: String, content: String, reference_line: usize) {
+    pub fn add(&mut self, name: String, content: String, reference_line: usize, has_blocks: bool) {
         self.pending.insert(
             name.clone(),
             FootnoteDefinition {
                 name,
                 content,
                 reference_line,
+                has_blocks,
             },
         );
     }
