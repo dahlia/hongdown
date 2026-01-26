@@ -399,7 +399,7 @@ impl<'a> Serializer<'a> {
         self.flush_footnote_references_before(None);
     }
 
-    /// Write a single footnote definition to output, wrapping at 80 characters
+    /// Write a single footnote definition to output, wrapping at line_width
     fn write_footnote(&mut self, footnote: &state::FootnoteDefinition) {
         let prefix = format!("[^{}]: ", footnote.name);
         // Continuation indent matches prefix length for alignment
@@ -425,9 +425,10 @@ impl<'a> Serializer<'a> {
             return;
         }
 
-        // Wrap content at 80 chars, accounting for prefix on first line
-        let first_line_width = 80 - prefix.width();
-        let continuation_width = 80 - continuation_indent.len();
+        // Wrap content at line_width, accounting for prefix on first line
+        let line_width = self.options.line_width.get();
+        let first_line_width = line_width - prefix.width();
+        let continuation_width = line_width - continuation_indent.len();
 
         // Replace SoftBreak marker (\x00) with space before processing
         let content = footnote.content.replace('\x00', " ");
@@ -501,80 +502,11 @@ impl<'a> Serializer<'a> {
 
     /// Serialize a single block element for footnote content.
     fn serialize_single_block<'b>(&mut self, node: &'b AstNode<'b>) -> String {
-        match &node.data.borrow().value {
-            NodeValue::Paragraph => {
-                let mut content = String::new();
-                for child in node.children() {
-                    self.collect_inline_node(child, &mut content);
-                }
-                // Replace SoftBreak marker with space
-                content.replace('\x00', " ").trim().to_string()
-            }
-            NodeValue::CodeBlock(code_block) => {
-                let mut output = String::new();
-                // Use the same fence style as the main serializer
-                let fence_char = self.options.fence_char.as_char();
-                let min_len = self.options.min_fence_length.get();
-                let fence_len = std::cmp::max(min_len, 4);
-                let fence: String = std::iter::repeat_n(fence_char, fence_len).collect();
-
-                output.push_str(&fence);
-                if !code_block.info.is_empty() {
-                    output.push(' ');
-                    output.push_str(&code_block.info);
-                }
-                output.push('\n');
-                output.push_str(&code_block.literal);
-                if !code_block.literal.ends_with('\n') {
-                    output.push('\n');
-                }
-                output.push_str(&fence);
-                output
-            }
-            NodeValue::BlockQuote => {
-                // Recursively serialize block quote content
-                let mut inner = String::new();
-                for child in node.children() {
-                    let block = self.serialize_single_block(child);
-                    if !inner.is_empty() {
-                        inner.push('\n');
-                    }
-                    inner.push_str(&block);
-                }
-                // Prefix each line with "> "
-                inner
-                    .lines()
-                    .map(|line| {
-                        if line.is_empty() {
-                            ">".to_string()
-                        } else {
-                            format!("> {}", line)
-                        }
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            }
-            NodeValue::List(_) => {
-                // For lists, use the existing serializer by creating a temporary output
-                let old_output = std::mem::take(&mut self.output);
-                self.serialize_node(node);
-                let list_output = std::mem::replace(&mut self.output, old_output);
-                list_output.trim_end().to_string()
-            }
-            NodeValue::Table(_) => {
-                // For tables, use the existing serializer
-                let old_output = std::mem::take(&mut self.output);
-                self.serialize_node(node);
-                let table_output = std::mem::replace(&mut self.output, old_output);
-                table_output.trim_end().to_string()
-            }
-            _ => {
-                // For other nodes, try to collect inline content
-                let mut content = String::new();
-                self.collect_inline_node(node, &mut content);
-                content.trim().to_string()
-            }
-        }
+        // Use the existing serializer infrastructure by temporarily capturing output
+        let old_output = std::mem::take(&mut self.output);
+        self.serialize_node(node);
+        let block_output = std::mem::replace(&mut self.output, old_output);
+        block_output.trim_end().to_string()
     }
 
     pub fn serialize_node<'b>(&mut self, node: &'b AstNode<'b>) {
@@ -711,15 +643,25 @@ impl<'a> Serializer<'a> {
                     .unwrap_or(0);
 
                 // Check if footnote contains block elements (code blocks, lists, etc.)
-                let has_blocks = node.children().any(|child| {
-                    matches!(
-                        &child.data.borrow().value,
-                        NodeValue::CodeBlock(_)
-                            | NodeValue::BlockQuote
-                            | NodeValue::List(_)
-                            | NodeValue::Table(_)
-                    )
-                });
+                let has_blocks = {
+                    let children: Vec<_> = node.children().collect();
+                    // Has blocks if:
+                    // 1. Contains any explicit block elements (code, blockquote, list, table)
+                    // 2. Contains multiple paragraphs (need blank line separation)
+                    children.iter().any(|child| {
+                        matches!(
+                            &child.data.borrow().value,
+                            NodeValue::CodeBlock(_)
+                                | NodeValue::BlockQuote
+                                | NodeValue::List(_)
+                                | NodeValue::Table(_)
+                        )
+                    }) || children
+                        .iter()
+                        .filter(|child| matches!(&child.data.borrow().value, NodeValue::Paragraph))
+                        .count()
+                        > 1
+                };
 
                 // Collect content from children
                 // Set flag so references within footnotes go to pending_footnote_references
