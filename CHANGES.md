@@ -4,7 +4,7 @@ Hongdown changelog
 Version 0.3.1
 -------------
 
-To be released.
+Released on January 26, 2026.
 
  -  Fixed a bug where code blocks inside footnotes were being silently dropped
     during formatting.  The formatter now properly preserves block elements
