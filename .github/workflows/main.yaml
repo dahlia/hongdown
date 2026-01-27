@@ -536,3 +536,77 @@ jobs:
         fi
 
         pnpm publish --access public --provenance --no-git-checks $TAG
+
+  test-vscode:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@v6
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - uses: pnpm/action-setup@v4
+      with:
+        version: latest
+    - name: Build hongdown CLI
+      run: cargo build --release
+    - name: Install dependencies
+      run: pnpm install --no-frozen-lockfile
+    - name: Build VS Code extension
+      run: pnpm --filter hongdown-vscode build
+    - name: Run VS Code integration tests
+      run: |
+        export PATH="${{ github.workspace }}/target/release:$PATH"
+        xvfb-run -a pnpm --filter hongdown-vscode test
+
+  publish-vscode:
+    if: >-
+      github.event_name == 'push' && (
+        github.ref_type == 'tag' ||
+        github.ref_name == 'main'
+      )
+    needs: [version, test-vscode]
+    runs-on: ubuntu-latest
+    environment:
+      name: vscode-marketplace
+      url: https://marketplace.visualstudio.com/items?itemName=hongdown.hongdown-vscode
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - uses: pnpm/action-setup@v4
+      with:
+        version: latest
+
+    - name: Set version
+      env:
+        VERSION: ${{ needs.version.outputs.version }}
+      run: |
+        set -euxo pipefail
+        cd packages/vscode
+        jq --arg v "$VERSION" '.version = $v' package.json > package.json.tmp
+        mv package.json.tmp package.json
+
+    - name: Install dependencies
+      run: pnpm install --no-frozen-lockfile
+
+    - name: Build extension
+      run: pnpm --filter hongdown-vscode build
+
+    - name: Publish to VS Code Marketplace
+      env:
+        VERSION: ${{ needs.version.outputs.version }}
+        VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      run: |
+        set -euxo pipefail
+        cd packages/vscode
+
+        if [[ "$VERSION" == *"-dev."* ]]; then
+          pnpm vsce publish --no-dependencies --pre-release
+        else
+          pnpm vsce publish --no-dependencies
+        fi

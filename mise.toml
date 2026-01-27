@@ -40,7 +40,7 @@ run = "cargo run -- --check"
 
 [tasks.test]
 description = "Run all tests"
-depends = ["test:rust", "test:wasm"]
+depends = ["test:rust", "test:wasm", "test:vscode"]
 
 [tasks."test:rust"]
 description = "Run Rust tests"
@@ -51,6 +51,11 @@ description = "Run WASM package tests"
 depends = ["build:wasm"]
 run = "pnpm --filter @hongdown/wasm test"
 
+[tasks."test:vscode"]
+description = "Run VS Code extension tests"
+depends = ["build:vscode"]
+run = "HONGDOWN_PATH=\"`pwd`/target/release/hongdown\" pnpm --filter hongdown-vscode test"
+
 [tasks."build:wasm"]
 description = "Build WASM package"
 run = """
@@ -59,4 +64,12 @@ mkdir -p packages/wasm/pkg
 cp -r pkg/* packages/wasm/pkg/
 pnpm --filter @hongdown/wasm install
 pnpm --filter @hongdown/wasm build
+"""
+
+[tasks."build:vscode"]
+description = "Build VS Code extension"
+run = """
+cargo build --release
+pnpm --filter hongdown-vscode install
+pnpm --filter hongdown-vscode build
 """
